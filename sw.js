@@ -7,14 +7,14 @@
      - Navigation:    network-first → cached index.html fallback
 ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME  = 'chart-reimaginer-v1';
+const CACHE_NAME  = 'plot_twist-v1';
 
 const LOCAL_ASSETS = [
-  '/chart-reimaginer/',
-  '/chart-reimaginer/index.html',
-  '/chart-reimaginer/manifest.json',
-  '/chart-reimaginer/icons/icon-192.png',
-  '/chart-reimaginer/icons/icon-512.png',
+  '/plot_twist/',
+  '/plot_twist/index.html',
+  '/plot_twist/manifest.json',
+  '/plot_twist/icons/icon-192.png',
+  '/plot_twist/icons/icon-512.png',
 ];
 
 /* ── Install ── */
@@ -66,7 +66,7 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() =>
-        caches.match('/chart-reimaginer/index.html')
+        caches.match('/plot_twist/index.html')
       )
     );
     return;
