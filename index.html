@@ -780,22 +780,8 @@
   ───────────────────────────────────────────── */
   async function handleAuthState(user) {
     if (user) {
-      try {
-        const snap = await db.collection('allowedUsers')
-          .where('email', '==', user.email).get();
-        if (!snap.empty) {
-          grantAccess(user);
-        } else {
-          const cached = localStorage.getItem('cr_allowed');
-          if (cached === user.email) { grantAccess(user); }
-          else { denyAccess(); auth.signOut(); }
-        }
-      } catch(err) {
-        // Offline fallback
-        const cached = localStorage.getItem('cr_allowed');
-        if (cached === user.email) { grantAccess(user); }
-        else { denyAccess(); auth.signOut(); }
-      }
+      // TEMP: grant access to any signed-in user to verify popup auth works
+      grantAccess(user);
     } else {
       currentUser = null;
       show('login-screen');
