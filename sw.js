@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   ChartReimaginer Service Worker v1
+   Plot Twist Service Worker v2
    Strategies:
      - Local assets:  cache-first (precached on install)
      - Firebase APIs: pass-through (Firestore handles its own cache)
@@ -7,14 +7,14 @@
      - Navigation:    network-first → cached index.html fallback
 ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME  = 'plot_twist-v1';
+const CACHE_NAME  = 'plot_twist-v2';
 
 const LOCAL_ASSETS = [
-  '/plot_twist/',
-  '/plot_twist/index.html',
-  '/plot_twist/manifest.json',
-  '/plot_twist/icons/icon-192.png',
-  '/plot_twist/icons/icon-512.png',
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 /* ── Install ── */
@@ -59,14 +59,15 @@ self.addEventListener('fetch', event => {
     url.hostname.includes('identitytoolkit.googleapis.com') ||
     url.hostname.includes('securetoken.googleapis.com') ||
     url.hostname.includes('firebase.googleapis.com') ||
-    url.hostname.includes('firebaseio.com')
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('firebaseapp.com')
   ) return;
 
   // ── Navigation requests: network-first, fall back to cached index.html
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() =>
-        caches.match('/plot_twist/index.html')
+        caches.match('/index.html')
       )
     );
     return;

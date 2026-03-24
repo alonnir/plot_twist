@@ -1,9 +1,9 @@
 {
-  "name": "ChartReimaginer",
-  "short_name": "Charts",
+  "name": "Plot Twist",
+  "short_name": "Plot Twist",
   "description": "Upload a chart image, edit the data, change the type, download a perfect new chart.",
-  "start_url": "/plot_twist/",
-  "scope": "/plot_twist/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#060b18",
   "theme_color": "#060b18",
