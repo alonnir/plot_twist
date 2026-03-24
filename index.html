@@ -767,25 +767,11 @@
      FIREBASE INIT
   ───────────────────────────────────────────── */
   function initFirebase() {
-    console.log('[PT] initFirebase start');
     firebase.initializeApp(FIREBASE_CONFIG);
     db   = firebase.firestore();
     auth = firebase.auth();
     db.enablePersistence({ synchronizeTabs: true })
-      .catch(err => console.log('[PT] Persistence:', err.code));
-    // Handle the result of a signInWithRedirect (fires after Google redirects back)
-    auth.getRedirectResult()
-      .then(result => {
-        console.log('[PT] getRedirectResult resolved, user:', result && result.user ? result.user.email : 'none');
-      })
-      .catch(err => {
-        console.error('[PT] getRedirectResult error:', err.code, err.message);
-        if (err.code && err.code !== 'auth/no-auth-event') {
-          showError(err.message || 'Sign-in failed. Please try again.');
-          hide('loading-screen');
-          show('login-screen');
-        }
-      });
+      .catch(err => console.log('Persistence:', err.code));
     auth.onAuthStateChanged(handleAuthState);
   }
 
@@ -793,23 +779,18 @@
      AUTH
   ───────────────────────────────────────────── */
   async function handleAuthState(user) {
-    console.log('[PT] onAuthStateChanged, user:', user ? user.email : 'null');
     if (user) {
       try {
-        console.log('[PT] querying allowedUsers for', user.email);
         const snap = await db.collection('allowedUsers')
           .where('email', '==', user.email).get();
-        console.log('[PT] allowedUsers query done, empty:', snap.empty, 'size:', snap.size);
         if (!snap.empty) {
           grantAccess(user);
         } else {
           const cached = localStorage.getItem('cr_allowed');
-          console.log('[PT] not in allowedUsers, cached:', cached);
           if (cached === user.email) { grantAccess(user); }
           else { denyAccess(); auth.signOut(); }
         }
       } catch(err) {
-        console.error('[PT] allowedUsers query error:', err.code, err.message);
         // Offline fallback
         const cached = localStorage.getItem('cr_allowed');
         if (cached === user.email) { grantAccess(user); }
@@ -844,11 +825,11 @@
   async function signIn() {
     const btn = document.getElementById('btn-signin');
     btn.disabled = true;
+    btn.querySelector('.btn-text') && (btn.querySelector('.btn-text').textContent = 'Signing in…');
     btn.innerHTML = '<span class="spinner-sm"></span>&nbsp;Redirecting to Google…';
     hideError();
     try {
-      // signInWithRedirect avoids the COOP header issue on GitHub Pages
-      await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+      await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
     } catch (err) {
       showError(err.message || 'Sign-in failed. Please try again.');
       btn.disabled = false;
