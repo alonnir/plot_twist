@@ -725,14 +725,14 @@
   <script>
   'use strict';
 
-  /* ── Firebase config (mystery-machine-e6dc9) ── */
+  /* ── Firebase config (plot-twist-d43c1) ── */
   const FIREBASE_CONFIG = {
-    apiKey:            'AIzaSyBLOp3cKAm165jxQPTdtTfpX_pZnBeoWOM',
-    authDomain:        'mystery-machine-e6dc9.firebaseapp.com',
-    projectId:         'mystery-machine-e6dc9',
-    storageBucket:     'mystery-machine-e6dc9.appspot.com',
-    messagingSenderId: '707812554843',
-    appId:             '1:707812554843:web:940ea1b2e0ef857615677e',
+    apiKey:            'AIzaSyCU8vtP8G3WhWuR-A46V0ABR1UKQA3p7TA',
+    authDomain:        'plot-twist-d43c1.firebaseapp.com',
+    projectId:         'plot-twist-d43c1',
+    storageBucket:     'plot-twist-d43c1.firebasestorage.app',
+    messagingSenderId: '1026197372250',
+    appId:             '1:1026197372250:web:f2eb6c7eff512d8c828763',
   };
 
   /* ── Default colours ── */
@@ -1321,13 +1321,13 @@
     import { getAI, getGenerativeModel, GoogleAIBackend } from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-ai.js';
 
     const app   = initializeApp({
-      apiKey:            'AIzaSyBLOp3cKAm165jxQPTdtTfpX_pZnBeoWOM',
-      authDomain:        'mystery-machine-e6dc9.firebaseapp.com',
-      projectId:         'mystery-machine-e6dc9',
-      storageBucket:     'mystery-machine-e6dc9.appspot.com',
-      messagingSenderId: '707812554843',
-      appId:             '1:707812554843:web:940ea1b2e0ef857615677e',
-    }, 'chart-reimaginer-ai');  // separate named instance
+      apiKey:            'AIzaSyCU8vtP8G3WhWuR-A46V0ABR1UKQA3p7TA',
+      authDomain:        'plot-twist-d43c1.firebaseapp.com',
+      projectId:         'plot-twist-d43c1',
+      storageBucket:     'plot-twist-d43c1.firebasestorage.app',
+      messagingSenderId: '1026197372250',
+      appId:             '1:1026197372250:web:f2eb6c7eff512d8c828763',
+    }, 'plot-twist-ai');  // separate named instance
 
     const ai    = getAI(app, { backend: new GoogleAIBackend() });
     const model = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
