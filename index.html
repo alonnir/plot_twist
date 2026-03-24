@@ -770,10 +770,6 @@
     firebase.initializeApp(FIREBASE_CONFIG);
     db   = firebase.firestore();
     auth = firebase.auth();
-    // Use new cache API to avoid deprecation warning
-    try {
-      db.settings({ experimentalForceLongPolling: false });
-    } catch {}
     db.enablePersistence({ synchronizeTabs: true })
       .catch(err => console.log('Persistence:', err.code));
     // Handle the result of a signInWithRedirect (fires after Google redirects back)
