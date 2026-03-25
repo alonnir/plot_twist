@@ -820,11 +820,11 @@
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
       style: {
         title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
-        xlabel:  { fontSize: 13, color: '#475569' },
-        ylabel:  { fontSize: 13, color: '#475569' },
+        xlabel:  { fontSize: 13, color: '#475569', x: null, y: null },
+        ylabel:  { fontSize: 13, color: '#475569', x: null, y: null },
         xticks:  { fontSize: 12, color: '#475569' },
         yticks:  { fontSize: 12, color: '#475569' },
-        legend:  { fontSize: 13, color: '#1e293b', position: 'top' },
+        legend:  { fontSize: 13, color: '#1e293b', position: 'top', x: null, y: null },
       },
     };
   }
@@ -1017,27 +1017,94 @@
   }
 
   /* ─────────────────────────────────────────────
-     CUSTOM TITLE PLUGIN  (draws title at free x/y)
+     CUSTOM ELEMENTS PLUGIN  (draws free-positioned elements via afterDraw)
   ───────────────────────────────────────────── */
-  let dragTitleHidden = false;   // true while title is being dragged (we draw preview on overlay instead)
+  let dragTitleHidden  = false;
+  let dragLegendHidden = false;
+  let dragXlabelHidden = false;
+  let dragYlabelHidden = false;
+
+  // Shared canvas text measurer
+  function measureTxt(text, fStr) {
+    const c = document.getElementById('chart-canvas').getContext('2d');
+    c.save(); c.font = fStr;
+    const w = c.measureText(text).width;
+    c.restore(); return w;
+  }
+
+  // Draw the legend items horizontally centred at (cx, cy)
+  function drawLegendAt(ctx, cx, cy, alpha) {
+    const s  = cfg.style.legend;
+    const fs = s.fontSize || 13;
+    const sw = fs - 2, gap = 5, itemGap = 14;
+    ctx.save();
+    ctx.globalAlpha  = alpha ?? 1;
+    ctx.font         = `${fs}px ${s.fontFamily || 'Inter,sans-serif'}`;
+    ctx.textBaseline = 'middle';
+    const items = chartInstance.data.datasets.map((ds, i) => {
+      const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+      const c = isArc ? (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor)
+                      : (ds.borderColor || (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || PALETTE[i % PALETTE.length]);
+      return { color: typeof c === 'string' ? c : PALETTE[i % PALETTE.length], label: ds.label || `Series ${i+1}` };
+    });
+    const widths  = items.map(it => sw + gap + ctx.measureText(it.label).width);
+    const totalW  = widths.reduce((a,b)=>a+b,0) + (items.length-1)*itemGap;
+    let dx = cx - totalW/2;
+    items.forEach((it, i) => {
+      ctx.fillStyle = it.color;
+      ctx.fillRect(dx, cy - sw/2, sw, sw);
+      ctx.fillStyle = s.color;
+      ctx.textAlign = 'left';
+      ctx.fillText(it.label, dx + sw + gap, cy);
+      dx += widths[i] + itemGap;
+    });
+    ctx.restore();
+  }
 
   Chart.register({
-    id: 'customTitle',
+    id: 'customElements',
     afterDraw(chart) {
-      if (!cfg || !cfg.title || dragTitleHidden) return;
-      const s   = cfg.style.title;
-      const ctx = chart.ctx;
-      const W   = chart.width, H = chart.height;
-      // Default position: horizontally centred, near top
-      const x = (s.x != null) ? s.x : W / 2;
-      const y = (s.y != null) ? s.y : Math.round(s.fontSize / 2) + 6;
-      ctx.save();
-      ctx.font         = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
-      ctx.fillStyle    = s.color;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(cfg.title, x, y);
-      ctx.restore();
+      if (!cfg) return;
+      const ctx = chart.ctx, s = cfg.style;
+      const W = chart.width, H = chart.height;
+
+      // Title (always drawn here)
+      if (cfg.title && !dragTitleHidden) {
+        const tx = (s.title.x != null) ? s.title.x : W / 2;
+        const ty = (s.title.y != null) ? s.title.y : Math.round(s.title.fontSize/2) + 6;
+        ctx.save();
+        ctx.font = `${s.title.fontWeight} ${s.title.fontSize}px ${s.title.fontFamily}`;
+        ctx.fillStyle = s.title.color;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(cfg.title, tx, ty);
+        ctx.restore();
+      }
+
+      // Legend (only when free-positioned)
+      if (cfg.options.showLegend && s.legend.x != null && !dragLegendHidden)
+        drawLegendAt(ctx, s.legend.x, s.legend.y, 1);
+
+      // X-axis label (only when free-positioned)
+      if (cfg.xAxisLabel && s.xlabel.x != null && !dragXlabelHidden) {
+        ctx.save();
+        ctx.font = `${s.xlabel.fontSize}px ${s.xlabel.fontFamily||'Inter,sans-serif'}`;
+        ctx.fillStyle = s.xlabel.color;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(cfg.xAxisLabel, s.xlabel.x, s.xlabel.y);
+        ctx.restore();
+      }
+
+      // Y-axis label (only when free-positioned, drawn rotated)
+      if (cfg.yAxisLabel && s.ylabel.x != null && !dragYlabelHidden) {
+        ctx.save();
+        ctx.translate(s.ylabel.x, s.ylabel.y);
+        ctx.rotate(-Math.PI / 2);
+        ctx.font = `${s.ylabel.fontSize}px ${s.ylabel.fontFamily||'Inter,sans-serif'}`;
+        ctx.fillStyle = s.ylabel.color;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(cfg.yAxisLabel, 0, 0);
+        ctx.restore();
+      }
     },
   });
 
@@ -1093,16 +1160,17 @@
     });
 
     const s = cfg.style;
+    // Disable Chart.js axis titles when we have a custom free position
     const scales = isArc ? {} : {
       x: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
         ticks: { color: s.xticks.color, font: { size: s.xticks.fontSize } },
-        title: { display: !!cfg.xAxisLabel, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
+        title: { display: !!cfg.xAxisLabel && s.xlabel.x == null, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
       },
       y: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
         ticks: { color: s.yticks.color, font: { size: s.yticks.fontSize } },
-        title: { display: !!cfg.yAxisLabel, text: cfg.yAxisLabel, color: s.ylabel.color, font: { size: s.ylabel.fontSize } },
+        title: { display: !!cfg.yAxisLabel && s.ylabel.x == null, text: cfg.yAxisLabel, color: s.ylabel.color, font: { size: s.ylabel.fontSize } },
       },
     };
 
@@ -1123,11 +1191,14 @@
         layout: { padding: { top: titlePad } },
         plugins: {
           legend: {
-            display:  cfg.options.showLegend,
+            // Disable when free-positioned — we draw it ourselves in afterDraw
+            display:  cfg.options.showLegend && s.legend.x == null,
             position: s.legend.position || 'top',
             labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
           },
-          title:   { display: false },   // we draw title ourselves
+          title:          { display: false },  // we draw title ourselves
+          customTitle:    false,               // old plugin id — superseded
+          customElements: {},                  // our combined afterDraw plugin
           tooltip: {
             backgroundColor: '#0f172a',
             titleColor:      '#f1f5f9',
@@ -1137,7 +1208,7 @@
             padding:         10,
             cornerRadius:    6,
           },
-          customTitle: {}, // triggers our registered plugin below
+          customElements: {}, // triggers our combined afterDraw plugin
         },
         scales,
       },
@@ -1215,25 +1286,36 @@
         return { type: 'title' };
     }
 
-    // 3. Legend
-    const leg = chartInstance.legend;
-    if (leg && cfg.options.showLegend && cx >= leg.left && cx <= leg.right && cy >= leg.top && cy <= leg.bottom)
-      return { type: 'legend' };
+    // 3. Legend — use tight bounds
+    if (cfg.options.showLegend) {
+      const lb = getZoneBounds({ type: 'legend' });
+      if (lb && cx >= lb[0] && cx <= lb[2] && cy >= lb[1] && cy <= lb[3])
+        return { type: 'legend' };
+    }
 
-    // 4. X scale area (below chart area)
+    // 4. X-axis label — tight text bounds
+    if (cfg.xAxisLabel) {
+      const xb = getZoneBounds({ type: 'xlabel' });
+      if (xb && cx >= xb[0] && cx <= xb[2] && cy >= xb[1] && cy <= xb[3])
+        return { type: 'xlabel' };
+    }
+
+    // 5. Y-axis label — tight text bounds
+    if (cfg.yAxisLabel) {
+      const yb = getZoneBounds({ type: 'ylabel' });
+      if (yb && cx >= yb[0] && cx <= yb[2] && cy >= yb[1] && cy <= yb[3])
+        return { type: 'ylabel' };
+    }
+
+    // 6. X tick area (below chart area, but not the axis label)
     const scX = chartInstance.scales?.x;
-    if (scX && cy > ca.bottom && cy <= scX.bottom && cx >= scX.left && cx <= scX.right) {
-      // Axis title is in the last ~22px of the scale
-      if (cfg.xAxisLabel && cy > scX.bottom - 22) return { type: 'xlabel' };
+    if (scX && cy > ca.bottom && cy <= scX.bottom && cx >= scX.left && cx <= scX.right)
       return { type: 'xticks' };
-    }
 
-    // 5. Y scale area (left of chart area)
+    // 7. Y tick area (left of chart area, but not the axis label)
     const scY = chartInstance.scales?.y;
-    if (scY && cx < ca.left && cx >= scY.left && cy >= scY.top && cy <= scY.bottom) {
-      if (cfg.yAxisLabel && cx < scY.left + 22) return { type: 'ylabel' };
+    if (scY && cx < ca.left && cx >= scY.left && cy >= scY.top && cy <= scY.bottom)
       return { type: 'yticks' };
-    }
 
     return null;
   }
@@ -1259,16 +1341,50 @@
         return [cx - tw/2 - pad, cy - th/2 - pad, cx + tw/2 + pad, cy + th/2 + pad];
       }
       case 'legend': {
+        const sl = cfg.style.legend;
+        if (sl.x != null) {
+          // Free-positioned: measure actual rendered width
+          const fs = sl.fontSize || 13, sw = fs-2, gap=5, iGap=14, pad=8;
+          const fStr = `${fs}px ${sl.fontFamily||'Inter,sans-serif'}`;
+          const items = chartInstance.data.datasets;
+          const totalW = items.reduce((s,ds) => s + sw + gap + measureTxt(ds.label||'',fStr) + iGap, 0) - iGap;
+          return [sl.x-totalW/2-pad, sl.y-(fs/2)-pad, sl.x+totalW/2+pad, sl.y+(fs/2)+pad];
+        }
+        // Chart.js legend — use legendHitBoxes for tight content bounds
         const l = chartInstance.legend;
-        return l ? [l.left, l.top, l.right, l.bottom] : null;
+        if (!l) return null;
+        const hb = l.legendHitBoxes;
+        if (hb && hb.length) {
+          const pad=5;
+          return [Math.min(...hb.map(b=>b.left))-pad, Math.min(...hb.map(b=>b.top))-pad,
+                  Math.max(...hb.map(b=>b.left+b.width))+pad, Math.max(...hb.map(b=>b.top+b.height))+pad];
+        }
+        return [l.left, l.top, l.right, l.bottom];
       }
       case 'xlabel': {
+        const sx = cfg.style.xlabel, fs = sx.fontSize||13, pad=6;
+        const fStr = `${fs}px ${sx.fontFamily||'Inter,sans-serif'}`;
+        const tw = measureTxt(cfg.xAxisLabel||'', fStr);
+        if (sx.x != null) {
+          return [sx.x-tw/2-pad, sx.y-fs/2-pad, sx.x+tw/2+pad, sx.y+fs/2+pad];
+        }
         const sc = chartInstance.scales?.x;
-        return sc ? [ca.left, sc.bottom - 22, ca.right, sc.bottom] : null;
+        if (!sc || !cfg.xAxisLabel) return null;
+        const cx = (sc.left+sc.right)/2, cy = sc.bottom - fs/2 - 2;
+        return [cx-tw/2-pad, cy-fs/2-pad, cx+tw/2+pad, cy+fs/2+pad];
       }
       case 'ylabel': {
+        const sy = cfg.style.ylabel, fs = sy.fontSize||13, pad=6;
+        const fStr = `${fs}px ${sy.fontFamily||'Inter,sans-serif'}`;
+        const tw = measureTxt(cfg.yAxisLabel||'', fStr);
+        if (sy.x != null) {
+          // Rotated: text "length" runs vertically, so tw → height, fs → width
+          return [sy.x-fs/2-pad, sy.y-tw/2-pad, sy.x+fs/2+pad, sy.y+tw/2+pad];
+        }
         const sc = chartInstance.scales?.y;
-        return sc ? [sc.left, ca.top, sc.left + 22, ca.bottom] : null;
+        if (!sc || !cfg.yAxisLabel) return null;
+        const cx = sc.left + fs/2 + 2, cy = (sc.top+sc.bottom)/2;
+        return [cx-fs/2-pad, cy-tw/2-pad, cx+fs/2+pad, cy+tw/2+pad];
       }
       case 'xticks': {
         const sc = chartInstance.scales?.x;
@@ -1322,22 +1438,7 @@
     ctx.clearRect(0,0,ov.width,ov.height);
 
     if (isDragging && dragZone && dragCurrentPos) {
-      if (dragZone.type === 'title') {
-        drawTitleDragPreview(ctx, ov.width, ov.height, dragCurrentPos);
-      } else {
-        // Legend: show a subtle dim + nearest-edge indicator
-        const W = ov.width, H = ov.height;
-        const p = dragCurrentPos;
-        const dT=p.y, dB=H-p.y, dL=p.x, dR=W-p.x;
-        const m = Math.min(dT,dB,dL,dR);
-        const edge = m===dT?'top': m===dB?'bottom': m===dL?'left':'right';
-        ctx.fillStyle = 'rgba(6,11,24,0.2)';
-        ctx.fillRect(0,0,W,H);
-        ctx.fillStyle = 'rgba(99,102,241,0.7)';
-        ctx.font = 'bold 13px Inter,sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(`Legend → ${edge}`, W/2, H/2);
-      }
+      drawDragPreview(ctx, ov.width, ov.height, dragZone.type, dragCurrentPos);
       return;
     }
 
@@ -1409,36 +1510,56 @@
     return { x: sx, y: sy, guides };
   }
 
-  // ── Draw a title preview + snap guides on the overlay canvas ──
-  function drawTitleDragPreview(ctx, W, H, pos) {
-    const { x, y, guides } = computeSnap(pos.x, pos.y, W, H);
-    const s = cfg.style.title;
+  const DRAGGABLE_TYPES = ['title','legend','xlabel','ylabel'];
 
-    // Snap guide lines
+  // ── Draw snap guides + element preview at snapped position ──
+  function drawDragPreview(ctx, W, H, type, pos) {
+    const { x, y, guides } = computeSnap(pos.x, pos.y, W, H);
     ctx.save();
-    ctx.strokeStyle = 'rgba(239,68,68,0.75)';  // red guide lines
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([4, 3]);
+    // Red snap guide lines
+    ctx.strokeStyle = 'rgba(239,68,68,0.75)';
+    ctx.lineWidth = 1; ctx.setLineDash([4,3]);
     guides.forEach(g => {
       ctx.beginPath();
-      if (g.axis === 'x') { ctx.moveTo(g.value, 0); ctx.lineTo(g.value, H); }
-      else                { ctx.moveTo(0, g.value); ctx.lineTo(W, g.value); }
+      if (g.axis==='x') { ctx.moveTo(g.value,0); ctx.lineTo(g.value,H); }
+      else              { ctx.moveTo(0,g.value); ctx.lineTo(W,g.value); }
       ctx.stroke();
     });
     ctx.setLineDash([]);
-
-    // Title text preview (slightly transparent)
-    ctx.globalAlpha  = 0.85;
-    ctx.font         = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
-    ctx.fillStyle    = s.color;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(cfg.title, x, y);
+    ctx.globalAlpha = 0.85;
+    if (type === 'title') {
+      const s = cfg.style.title;
+      ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+      ctx.fillStyle = s.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(cfg.title, x, y);
+    } else if (type === 'legend') {
+      drawLegendAt(ctx, x, y, 0.85);
+    } else if (type === 'xlabel') {
+      const s = cfg.style.xlabel;
+      ctx.font=`${s.fontSize}px ${s.fontFamily||'Inter,sans-serif'}`;
+      ctx.fillStyle=s.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(cfg.xAxisLabel, x, y);
+    } else if (type === 'ylabel') {
+      const s = cfg.style.ylabel;
+      ctx.translate(x, y); ctx.rotate(-Math.PI/2);
+      ctx.font=`${s.fontSize}px ${s.fontFamily||'Inter,sans-serif'}`;
+      ctx.fillStyle=s.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(cfg.yAxisLabel, 0, 0);
+    }
     ctx.restore();
   }
 
   // ── Event handlers ──
-  // Document-level handlers keep drag alive even when mouse leaves the canvas
+  const DRAG_HIDDEN = {
+    title:  () => { dragTitleHidden  = true; },
+    legend: () => { dragLegendHidden = true; },
+    xlabel: () => { dragXlabelHidden = true; },
+    ylabel: () => { dragYlabelHidden = true; },
+  };
+  function restoreAllHidden() {
+    dragTitleHidden = dragLegendHidden = dragXlabelHidden = dragYlabelHidden = false;
+  }
+
   function onDocDragMove(e) {
     e.preventDefault();
     const ov = document.getElementById('overlay-canvas');
@@ -1448,9 +1569,9 @@
     if (!isDragging && dragStartPos) {
       if (Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y) > DRAG_THRESHOLD) {
         isDragging = true;
-        // Hide the chart-canvas title so the overlay preview is the only one visible
-        if (dragZone?.type === 'title') {
-          dragTitleHidden = true;
+        // Hide the element on the chart canvas so the overlay preview is the only copy
+        if (dragZone && DRAG_HIDDEN[dragZone.type]) {
+          DRAG_HIDDEN[dragZone.type]();
           chartInstance?.draw();
         }
       }
@@ -1467,12 +1588,10 @@
     document.removeEventListener('mouseup',   onDocDragUp);
     document.body.style.cursor = '';
     const ov = document.getElementById('overlay-canvas');
-
     if (isDragging && dragZone && dragCurrentPos) {
       finishDrag(dragZone.type, dragCurrentPos);
     } else {
-      // Aborted drag — restore title
-      dragTitleHidden = false;
+      restoreAllHidden();
       chartInstance?.draw();
     }
     isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
@@ -1481,12 +1600,12 @@
   }
 
   function onOvMove(e) {
-    if (isDragging) return; // handled by document listener
+    if (isDragging) return;
     const p  = cssCoords(e);
     const ov = document.getElementById('overlay-canvas');
     const z  = getHitZone(p.x, p.y);
     if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
-    ov.style.cursor = z ? (['legend','title'].includes(z?.type) ? 'grab' : 'pointer') : 'default';
+    ov.style.cursor = z ? (DRAGGABLE_TYPES.includes(z?.type) ? 'grab' : 'pointer') : 'default';
   }
 
   function onOvDown(e) {
@@ -1495,10 +1614,8 @@
     const z = getHitZone(p.x, p.y);
     if (!z) { selectZone(null); return; }
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
-    if (['legend','title'].includes(z.type)) {
-      dragZone       = z;
-      dragStartPos   = p;
-      dragCurrentPos = p;
+    if (DRAGGABLE_TYPES.includes(z.type)) {
+      dragZone = z; dragStartPos = p; dragCurrentPos = p;
       document.addEventListener('mousemove', onDocDragMove);
       document.addEventListener('mouseup',   onDocDragUp);
       document.getElementById('overlay-canvas').style.cursor = 'grab';
@@ -1511,23 +1628,26 @@
   }
 
   function finishDrag(type, pos) {
+    const ov = document.getElementById('overlay-canvas');
+    const { x, y } = computeSnap(pos.x, pos.y, ov.width, ov.height);
+    const rx = Math.round(x), ry = Math.round(y);
+
     if (type === 'title') {
-      const ov = document.getElementById('overlay-canvas');
-      const { x, y } = computeSnap(pos.x, pos.y, ov.width, ov.height);
-      cfg.style.title.x = Math.round(x);
-      cfg.style.title.y = Math.round(y);
+      cfg.style.title.x = rx; cfg.style.title.y = ry;
       dragTitleHidden = false;
-      // Redraw chart with title at new position (no full destroy/recreate needed)
-      chartInstance.options.layout.padding.top =
-        (cfg.title && cfg.style.title.x == null) ? cfg.style.title.fontSize + 14 : 0;
+      chartInstance.options.layout.padding.top = 0;
       chartInstance.update('none');
     } else if (type === 'legend') {
-      // Legend stays snap-to-position
-      const ov = document.getElementById('overlay-canvas');
-      const W = ov.width, H = ov.height;
-      const dT = pos.y, dB = H-pos.y, dL = pos.x, dR = W-pos.x;
-      const m  = Math.min(dT, dB, dL, dR);
-      cfg.style.legend.position = m===dT?'top': m===dB?'bottom': m===dL?'left':'right';
+      cfg.style.legend.x = rx; cfg.style.legend.y = ry;
+      dragLegendHidden = false;
+      render(); // need render() to disable Chart.js legend on first free-position
+    } else if (type === 'xlabel') {
+      cfg.style.xlabel.x = rx; cfg.style.xlabel.y = ry;
+      dragXlabelHidden = false;
+      render();
+    } else if (type === 'ylabel') {
+      cfg.style.ylabel.x = rx; cfg.style.ylabel.y = ry;
+      dragYlabelHidden = false;
       render();
     }
     setTimeout(() => { selectZone({ type }, null); }, 20);
@@ -1617,7 +1737,11 @@
           <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${st.color}"
               oninput="cfg.style.${key}.color=this.value;render()" /></div>
-        </div>`;
+        </div>
+        ${st.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
+          onclick="cfg.style.${key}.x=null;cfg.style.${key}.y=null;render();selectZone({type:'${key}'},null)">
+          ↩ Reset to default position</button></div>` : ''}
+        <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
     if (zone.type === 'xticks' || zone.type === 'yticks') {
@@ -1635,12 +1759,12 @@
 
     if (zone.type === 'legend') {
       return `
-        <div class="insp-field"><span class="insp-label">Position</span>
+        ${s.legend.x == null ? `<div class="insp-field"><span class="insp-label">Position</span>
           <select class="insp-select" onchange="cfg.style.legend.position=this.value;render()">
             ${['top','bottom','left','right'].map(p=>
               `<option value="${p}"${s.legend.position===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
             ).join('')}
-          </select></div>
+          </select></div>` : ''}
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="32" value="${s.legend.fontSize}"
@@ -1649,7 +1773,10 @@
             <input type="color" class="insp-color" value="${s.legend.color}"
               oninput="cfg.style.legend.color=this.value;render()" /></div>
         </div>
-        <div class="insp-hint">⠿ Drag to reposition</div>`;
+        ${s.legend.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
+          onclick="cfg.style.legend.x=null;cfg.style.legend.y=null;render();selectZone({type:'legend'},null)">
+          ↩ Reset to default position</button></div>` : ''}
+        <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
     if (zone.type === 'series') {
