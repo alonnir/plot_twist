@@ -1034,6 +1034,32 @@
   }
 
   /* ─────────────────────────────────────────────
+     COLOUR NORMALISATION
+     <input type=color> requires exactly #rrggbb.
+     Gemini can return rgba(), hsl(), named colours, etc.
+     We convert everything via a 1×1 canvas pixel read.
+  ───────────────────────────────────────────── */
+  function normalizeHex(color) {
+    if (!color || typeof color !== 'string') return null;
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) return color.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+      const h = color.slice(1);
+      return ('#' + h[0]+h[0]+h[1]+h[1]+h[2]+h[2]).toLowerCase();
+    }
+    try {
+      const tmp = document.createElement('canvas');
+      tmp.width = tmp.height = 1;
+      const ctx = tmp.getContext('2d');
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      if (d[3] === 0) return color;
+      return '#' + [d[0], d[1], d[2]].map(x => x.toString(16).padStart(2, '0')).join('');
+    } catch(e) { return color; }
+  }
+
+  /* ─────────────────────────────────────────────
      APPLY PARSED DATA
   ───────────────────────────────────────────── */
   function applyParsed(parsed) {
@@ -1048,11 +1074,13 @@
       datasets:   (parsed.datasets || []).map((ds, i) => {
         const fallback = PALETTE[i % PALETTE.length];
         const rawColors = Array.isArray(ds.backgroundColor) ? ds.backgroundColor : Array(nLabels).fill(ds.backgroundColor || fallback);
+        // Normalise every colour to #rrggbb so <input type=color> always shows the right swatch
+        const hexColors = rawColors.map(c => normalizeHex(c) || fallback);
         return {
           label:    ds.label || `Series ${i+1}`,
           data:     ds.data  || [],
-          color:    rawColors[0] || fallback,
-          colors:   rawColors,
+          color:    hexColors[0] || fallback,
+          colors:   hexColors,
           uncertain: Array(nLabels).fill(false).map((_, idx) =>
             !!(ds.uncertainIndices || []).includes(idx)),
         };
