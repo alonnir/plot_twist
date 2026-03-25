@@ -780,14 +780,24 @@
   ───────────────────────────────────────────── */
   async function handleAuthState(user) {
     if (user) {
-      // TEMP: grant access to any signed-in user to verify popup auth works
-      grantAccess(user);
+      try {
+        const snap = await db.collection('allowedUsers')
+          .where('email', '==', user.email).get();
+        if (!snap.empty) {
+          grantAccess(user);
+        } else {
+          const cached = localStorage.getItem('cr_allowed');
+          if (cached === user.email) { grantAccess(user); }
+          else { denyAccess(); auth.signOut(); }
+        }
+      } catch(err) {
+        const cached = localStorage.getItem('cr_allowed');
+        if (cached === user.email) { grantAccess(user); }
+        else { denyAccess(); auth.signOut(); }
+      }
     } else {
       currentUser = null;
-      // Don't bounce to login if app screen is already visible (indicates successful auth in progress)
-      if (document.getElementById('app-screen').style.display !== 'flex') {
-        show('login-screen');
-      }
+      show('login-screen');
     }
     hide('loading-screen');
   }
@@ -819,8 +829,9 @@
     hideError();
     console.log('[PT] signIn clicked, attempting popup');
     try {
-      const result = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-      console.log('[PT] popup completed, user:', result.user.email);
+      await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      // Reload to let onAuthStateChanged pick up fresh auth state cleanly
+      window.location.reload();
     } catch (err) {
       console.error('[PT] popup error:', err.code, err.message);
       showError(err.message || 'Sign-in failed. Please try again.');
