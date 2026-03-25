@@ -259,8 +259,54 @@
       display: flex; align-items: center; justify-content: center;
       padding: 24px;
       transition: background .2s;
+      position: relative;
     }
     #chart-canvas { max-width: 100%; max-height: 100%; }
+
+    /* ── Inspector overlay ── */
+    #chart-hit-layer {
+      position: absolute; inset: 0;
+      pointer-events: all;
+      cursor: default;
+    }
+    #inspector {
+      position: absolute;
+      z-index: 50;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-lt);
+      border-radius: var(--r-lg);
+      box-shadow: 0 8px 32px rgba(0,0,0,.6);
+      width: 230px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .insp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .insp-title { font-size: 12px; font-weight: 600; color: var(--indigo); text-transform: uppercase; letter-spacing: .06em; }
+    .insp-close { background: none; border: none; color: var(--text-muted); font-size: 18px; line-height: 1; padding: 0; cursor: pointer; }
+    .insp-close:hover { color: var(--text); }
+    .insp-field { display: flex; flex-direction: column; gap: 4px; }
+    .insp-label { font-size: 11px; color: var(--text-muted); }
+    .insp-input {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text);
+      padding: 5px 8px; font-size: 13px; width: 100%;
+    }
+    .insp-input:focus { outline: none; border-color: var(--indigo); }
+    .insp-row { display: flex; gap: 6px; }
+    .insp-row .insp-field { flex: 1; }
+    .insp-color { width: 36px; height: 32px; border-radius: var(--r); border: 1px solid var(--border); cursor: pointer; padding: 2px; background: var(--bg-input); flex-shrink: 0; }
+    .insp-select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text);
+      padding: 5px 8px; font-size: 13px; width: 100%;
+    }
+    .insp-hint { font-size: 11px; color: var(--text-dim); text-align: center; padding-top: 2px; }
 
     .btn-download {
       display: flex; align-items: center; gap: 6px;
@@ -589,6 +635,14 @@
         <div class="stage-body">
           <div id="canvas-wrapper">
             <canvas id="chart-canvas"></canvas>
+            <div id="chart-hit-layer"></div>
+            <div id="inspector">
+              <div class="insp-header">
+                <span class="insp-title" id="insp-title-label">Element</span>
+                <button class="insp-close" onclick="closeInspector()">×</button>
+              </div>
+              <div id="insp-body"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -760,6 +814,13 @@
         colors: Array(6).fill('#6366f1'),
       }],
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
+      style: {
+        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700' },
+        xlabel:  { fontSize: 13, color: '#475569' },
+        ylabel:  { fontSize: 13, color: '#475569' },
+        ticks:   { fontSize: 12, color: '#475569' },
+        legend:  { fontSize: 13, color: '#1e293b', position: 'top' },
+      },
     };
   }
 
@@ -943,7 +1004,9 @@
         };
       }),
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
+      style: defaultCfg().style,
     };
+    closeInspector();
     render();
     refreshEditUI();
   }
@@ -999,16 +1062,17 @@
       };
     });
 
+    const s = cfg.style;
     const scales = isArc ? {} : {
       x: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: '#475569', font: { size: 12 } },
-        title: { display: !!cfg.xAxisLabel, text: cfg.xAxisLabel, color: '#475569', font: { size: 13 } },
+        ticks: { color: s.ticks.color, font: { size: s.ticks.fontSize } },
+        title: { display: !!cfg.xAxisLabel, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
       },
       y: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: '#475569', font: { size: 12 } },
-        title: { display: !!cfg.yAxisLabel, text: cfg.yAxisLabel, color: '#475569', font: { size: 13 } },
+        ticks: { color: s.ticks.color, font: { size: s.ticks.fontSize } },
+        title: { display: !!cfg.yAxisLabel, text: cfg.yAxisLabel, color: s.ylabel.color, font: { size: s.ylabel.fontSize } },
       },
     };
 
@@ -1021,18 +1085,19 @@
         responsive:          true,
         maintainAspectRatio: false,
         indexAxis: (cfg.type === 'bar' && cfg.horizontal) ? 'y' : 'x',
-        animation:           { duration: 300 },
+        animation:           { duration: 150 },
         plugins: {
           legend: {
-            display: cfg.options.showLegend,
-            labels:  { color: '#1e293b', font: { size: 13 }, padding: 16 },
+            display:  cfg.options.showLegend,
+            position: s.legend.position || 'top',
+            labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
           },
           title: {
             display: !!cfg.title,
             text:    cfg.title,
-            color:   '#0f172a',
-            font:    { size: 18, weight: '700', family: "'Space Grotesk', sans-serif" },
-            padding: { bottom: 20 },
+            color:   s.title.color,
+            font:    { size: s.title.fontSize, weight: s.title.fontWeight, family: s.title.fontFamily },
+            padding: { bottom: 16 },
           },
           tooltip: {
             backgroundColor: '#0f172a',
@@ -1047,6 +1112,247 @@
         scales,
       },
     });
+
+    setupHitLayer();
+  }
+
+  /* ─────────────────────────────────────────────
+     INSPECTOR / HIT LAYER
+  ───────────────────────────────────────────── */
+  const FONTS = [
+    { label: 'Space Grotesk',  value: "'Space Grotesk', sans-serif" },
+    { label: 'Inter',          value: "'Inter', sans-serif" },
+    { label: 'Georgia',        value: 'Georgia, serif' },
+    { label: 'Courier New',    value: "'Courier New', monospace" },
+    { label: 'Arial',          value: 'Arial, sans-serif' },
+  ];
+
+  function setupHitLayer() {
+    const hit = document.getElementById('chart-hit-layer');
+    hit.onmousemove = onHitMove;
+    hit.onclick     = onHitClick;
+    hit.onmouseleave = () => { hit.style.cursor = 'default'; };
+  }
+
+  function getHitZone(ex, ey) {
+    if (!chartInstance) return null;
+    const canvas = document.getElementById('chart-canvas');
+    const rect   = canvas.getBoundingClientRect();
+    const wrap   = document.getElementById('canvas-wrapper').getBoundingClientRect();
+    // offset relative to canvas
+    const cx = ex - rect.left;
+    const cy = ey - rect.top;
+    if (cx < 0 || cy < 0 || cx > rect.width || cy > rect.height) return null;
+
+    const ca = chartInstance.chartArea;  // CSS-px coords within canvas
+
+    // Data element (bar / point / slice)
+    const native = { clientX: ex, clientY: ey, target: canvas,
+      offsetX: cx * (canvas.width / rect.width),
+      offsetY: cy * (canvas.height / rect.height) };
+    const els = chartInstance.getElementsAtEventForMode(native, 'nearest', { intersect: true }, false);
+    if (els.length) return { type: 'series', datasetIndex: els[0].datasetIndex, index: els[0].index };
+
+    // Title (above chart area)
+    if (cfg.title && cy < ca.top) return { type: 'title' };
+
+    // Legend
+    const leg = chartInstance.legend;
+    if (leg && cfg.options.showLegend) {
+      if (cx >= leg.left && cx <= leg.right && cy >= leg.top && cy <= leg.bottom)
+        return { type: 'legend' };
+    }
+
+    // X-axis label (below chart area, centre band)
+    if (cfg.xAxisLabel && cy > ca.bottom && cx >= ca.left && cx <= ca.right)
+      return { type: 'xlabel' };
+
+    // Y-axis label (left of chart area)
+    if (cfg.yAxisLabel && cx < ca.left && cy >= ca.top && cy <= ca.bottom)
+      return { type: 'ylabel' };
+
+    return null;
+  }
+
+  function onHitMove(e) {
+    const zone = getHitZone(e.clientX, e.clientY);
+    document.getElementById('chart-hit-layer').style.cursor = zone ? 'pointer' : 'default';
+  }
+
+  function onHitClick(e) {
+    const zone = getHitZone(e.clientX, e.clientY);
+    if (!zone) { closeInspector(); return; }
+    const canvas = document.getElementById('chart-canvas');
+    const rect   = canvas.getBoundingClientRect();
+    const wrap   = document.getElementById('canvas-wrapper');
+    const wRect  = wrap.getBoundingClientRect();
+    // position relative to canvas-wrapper
+    const px = e.clientX - wRect.left;
+    const py = e.clientY - wRect.top;
+    openInspector(zone, px, py);
+  }
+
+  function openInspector(zone, px, py) {
+    const insp  = document.getElementById('inspector');
+    const label = document.getElementById('insp-title-label');
+    const body  = document.getElementById('insp-body');
+
+    insp.style.display = 'flex';
+    body.innerHTML = buildInspectorHTML(zone);
+    label.textContent = {
+      title: 'Title', xlabel: 'X-Axis Label', ylabel: 'Y-Axis Label',
+      legend: 'Legend', series: 'Data Series',
+    }[zone.type] || 'Element';
+
+    // Position: prefer right of click, flip if too close to edge
+    const wrap  = document.getElementById('canvas-wrapper');
+    const ww    = wrap.offsetWidth;
+    const wh    = wrap.offsetHeight;
+    const iw    = 230 + 16;
+    const left  = (px + iw < ww) ? px + 12 : px - iw + 4;
+    const top   = Math.max(8, Math.min(py - 20, wh - insp.offsetHeight - 8));
+    insp.style.left = left + 'px';
+    insp.style.top  = top  + 'px';
+
+    // Store zone on insp for update handlers
+    insp._zone = zone;
+  }
+
+  function buildInspectorHTML(zone) {
+    const s = cfg.style;
+    const fontOpts = FONTS.map(f =>
+      `<option value="${f.value}" ${s.title.fontFamily === f.value ? 'selected' : ''}>${f.label}</option>`
+    ).join('');
+
+    if (zone.type === 'title') {
+      return `
+        <div class="insp-field">
+          <span class="insp-label">Text</span>
+          <input class="insp-input" value="${escHtml(cfg.title)}" oninput="cfg.title=this.value;render()" />
+        </div>
+        <div class="insp-row">
+          <div class="insp-field">
+            <span class="insp-label">Size</span>
+            <input class="insp-input" type="number" min="8" max="64" value="${s.title.fontSize}"
+              oninput="cfg.style.title.fontSize=+this.value;render()" />
+          </div>
+          <div class="insp-field" style="flex:0 0 auto">
+            <span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${s.title.color}"
+              oninput="cfg.style.title.color=this.value;render()" />
+          </div>
+        </div>
+        <div class="insp-field">
+          <span class="insp-label">Font</span>
+          <select class="insp-select" onchange="cfg.style.title.fontFamily=this.value;render()">${
+            FONTS.map(f=>`<option value="${f.value}"${s.title.fontFamily===f.value?' selected':''}>${f.label}</option>`).join('')
+          }</select>
+        </div>
+        <div class="insp-field">
+          <span class="insp-label">Weight</span>
+          <select class="insp-select" onchange="cfg.style.title.fontWeight=this.value;render()">
+            <option value="400"${s.title.fontWeight==='400'?' selected':''}>Regular</option>
+            <option value="600"${s.title.fontWeight==='600'?' selected':''}>Semi-bold</option>
+            <option value="700"${s.title.fontWeight==='700'?' selected':''}>Bold</option>
+          </select>
+        </div>`;
+    }
+
+    if (zone.type === 'xlabel' || zone.type === 'ylabel') {
+      const key = zone.type;
+      const st  = s[key];
+      const val = key === 'xlabel' ? cfg.xAxisLabel : cfg.yAxisLabel;
+      return `
+        <div class="insp-field">
+          <span class="insp-label">Text</span>
+          <input class="insp-input" value="${escHtml(val)}"
+            oninput="${key==='xlabel'?'cfg.xAxisLabel':'cfg.yAxisLabel'}=this.value;render()" />
+        </div>
+        <div class="insp-row">
+          <div class="insp-field">
+            <span class="insp-label">Size</span>
+            <input class="insp-input" type="number" min="8" max="40" value="${st.fontSize}"
+              oninput="cfg.style.${key}.fontSize=+this.value;render()" />
+          </div>
+          <div class="insp-field" style="flex:0 0 auto">
+            <span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${st.color}"
+              oninput="cfg.style.${key}.color=this.value;render()" />
+          </div>
+        </div>`;
+    }
+
+    if (zone.type === 'legend') {
+      return `
+        <div class="insp-field">
+          <span class="insp-label">Position</span>
+          <select class="insp-select" onchange="cfg.style.legend.position=this.value;render()">
+            ${['top','bottom','left','right'].map(p=>
+              `<option value="${p}"${s.legend.position===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="insp-row">
+          <div class="insp-field">
+            <span class="insp-label">Size</span>
+            <input class="insp-input" type="number" min="8" max="32" value="${s.legend.fontSize}"
+              oninput="cfg.style.legend.fontSize=+this.value;render()" />
+          </div>
+          <div class="insp-field" style="flex:0 0 auto">
+            <span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${s.legend.color}"
+              oninput="cfg.style.legend.color=this.value;render()" />
+          </div>
+        </div>`;
+    }
+
+    if (zone.type === 'series') {
+      const ds = cfg.datasets[zone.datasetIndex];
+      const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+      if (isArc) {
+        const col = (ds.colors && ds.colors[zone.index]) || PALETTE[zone.index % PALETTE.length];
+        return `
+          <div class="insp-field">
+            <span class="insp-label">Slice: ${escHtml(cfg.labels[zone.index] || '')}</span>
+          </div>
+          <div class="insp-row">
+            <div class="insp-field">
+              <span class="insp-label">Color</span>
+              <input type="color" class="insp-color" value="${col}"
+                oninput="cfg.datasets[${zone.datasetIndex}].colors[${zone.index}]=this.value;render()" />
+            </div>
+          </div>
+          <div class="insp-hint">Click label in legend to rename</div>`;
+      }
+      return `
+        <div class="insp-field">
+          <span class="insp-label">Series Name</span>
+          <input class="insp-input" value="${escHtml(ds.label)}"
+            oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" />
+        </div>
+        <div class="insp-row">
+          <div class="insp-field">
+            <span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${ds.color || PALETTE[zone.datasetIndex % PALETTE.length]}"
+              oninput="cfg.datasets[${zone.datasetIndex}].color=this.value;render()" />
+          </div>
+          <div class="insp-field">
+            <span class="insp-label">Value</span>
+            <input class="insp-input" type="number" value="${ds.data[zone.index]}"
+              oninput="cfg.datasets[${zone.datasetIndex}].data[${zone.index}]=+this.value;render()" />
+          </div>
+        </div>
+        <div class="insp-hint">Point: ${escHtml(cfg.labels[zone.index] || String(zone.index))}</div>`;
+    }
+    return '';
+  }
+
+  function closeInspector() {
+    document.getElementById('inspector').style.display = 'none';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   }
 
   /* ─────────────────────────────────────────────
