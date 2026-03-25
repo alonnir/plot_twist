@@ -1163,18 +1163,13 @@
   /* ─────────────────────────────────────────────
      CHART RENDERING
   ───────────────────────────────────────────── */
-  function render() {
-    const canvas  = document.getElementById('chart-canvas');
-    const wrapper = document.getElementById('canvas-wrapper');
-    wrapper.style.background = cfg.options.canvasBg || '#ffffff';
 
-    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-
+  // Build the Chart.js dataset objects from cfg
+  function _buildDatasets() {
     const isArc     = cfg.type === 'pie' || cfg.type === 'doughnut';
     const isScatter = cfg.type === 'scatter';
     const isArea    = cfg.type === 'area';
-
-    const datasets = cfg.datasets.map((ds, i) => {
+    return cfg.datasets.map((ds, i) => {
       const fallback = PALETTE[i % PALETTE.length];
       if (isArc) {
         return {
@@ -1210,9 +1205,79 @@
         pointHoverRadius:cfg.type === 'line' ? 6 : 5,
       };
     });
+  }
 
-    const s = cfg.style;
-    // Disable Chart.js axis titles when we have a custom free position
+  function render() {
+    const canvas  = document.getElementById('chart-canvas');
+    const wrapper = document.getElementById('canvas-wrapper');
+    wrapper.style.background = cfg.options.canvasBg || '#ffffff';
+
+    const isArc      = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const chartType  = (cfg.type === 'area') ? 'line' : cfg.type;
+    const isHorizBar = cfg.type === 'bar' && cfg.horizontal;
+    const s          = cfg.style;
+    const titlePad   = (cfg.title && s.title.x == null) ? s.title.fontSize + 14 : 0;
+    const datasets   = _buildDatasets();
+
+    // ── Can we update in-place? ──────────────────────────────────────────
+    // Only recreate when chart type or bar orientation changes — everything
+    // else (colours, font sizes, labels, data) can be patched without
+    // destroying the canvas, which eliminates the one-frame blank flash.
+    const curType   = chartInstance?.config?.type;
+    const curHoriz  = chartInstance?.options?.indexAxis === 'y';
+    const canReuse  = chartInstance
+                      && curType  === chartType
+                      && curHoriz === isHorizBar;
+
+    if (canReuse) {
+      // Patch data
+      chartInstance.data.labels   = cfg.labels;
+      // Splice datasets to match length (add/remove without recreating)
+      while (chartInstance.data.datasets.length > datasets.length)
+        chartInstance.data.datasets.pop();
+      datasets.forEach((ds, i) => {
+        if (chartInstance.data.datasets[i]) {
+          Object.assign(chartInstance.data.datasets[i], ds);
+        } else {
+          chartInstance.data.datasets.push(ds);
+        }
+      });
+
+      // Patch options
+      chartInstance.options.layout.padding.top = titlePad;
+      const leg = chartInstance.options.plugins.legend;
+      leg.display         = cfg.options.showLegend && s.legend.x == null;
+      leg.position        = s.legend.position || 'top';
+      leg.labels.color    = s.legend.color;
+      leg.labels.font.size= s.legend.fontSize;
+
+      if (!isArc && chartInstance.options.scales?.x) {
+        const sx = chartInstance.options.scales.x;
+        const sy = chartInstance.options.scales.y;
+        sx.grid.display           = cfg.options.showGrid;
+        sx.ticks.color            = s.xticks.color;
+        sx.ticks.font.size        = s.xticks.fontSize;
+        sx.title.display          = !!cfg.xAxisLabel && s.xlabel.x == null;
+        sx.title.text             = cfg.xAxisLabel;
+        sx.title.color            = s.xlabel.color;
+        sx.title.font             = { size: s.xlabel.fontSize };
+        sy.grid.display           = cfg.options.showGrid;
+        sy.ticks.color            = s.yticks.color;
+        sy.ticks.font.size        = s.yticks.fontSize;
+        sy.title.display          = !!cfg.yAxisLabel && s.ylabel.x == null;
+        sy.title.text             = cfg.yAxisLabel;
+        sy.title.color            = s.ylabel.color;
+        sy.title.font             = { size: s.ylabel.fontSize };
+      }
+
+      chartInstance.update('none'); // instant, no flash
+      setupHitLayer();
+      return;
+    }
+
+    // ── Full recreate (type or orientation changed) ──────────────────────
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
     const scales = isArc ? {} : {
       x: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
@@ -1226,31 +1291,23 @@
       },
     };
 
-    const chartType = (cfg.type === 'area') ? 'line' : cfg.type;
-
-    // Title is drawn by our custom afterDraw plugin at free x/y coords.
-    // When at default position (x/y null), reserve top padding so chart area doesn't overlap.
-    const titlePad = (cfg.title && s.title.x == null) ? s.title.fontSize + 14 : 0;
-
     chartInstance = new Chart(canvas, {
       type: chartType,
       data: { labels: cfg.labels, datasets },
       options: {
         responsive:          true,
         maintainAspectRatio: false,
-        indexAxis: (cfg.type === 'bar' && cfg.horizontal) ? 'y' : 'x',
-        animation:           { duration: 150 },
+        indexAxis:           isHorizBar ? 'y' : 'x',
+        animation:           { duration: 0 },
         layout: { padding: { top: titlePad } },
         plugins: {
           legend: {
-            // Disable when free-positioned — we draw it ourselves in afterDraw
             display:  cfg.options.showLegend && s.legend.x == null,
             position: s.legend.position || 'top',
             labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
           },
-          title:          { display: false },  // we draw title ourselves
-          customTitle:    false,               // old plugin id — superseded
-          customElements: {},                  // our combined afterDraw plugin
+          title:          { display: false },
+          customElements: {},
           tooltip: {
             backgroundColor: '#0f172a',
             titleColor:      '#f1f5f9',
@@ -1260,7 +1317,6 @@
             padding:         10,
             cornerRadius:    6,
           },
-          customElements: {}, // triggers our combined afterDraw plugin
         },
         scales,
       },
