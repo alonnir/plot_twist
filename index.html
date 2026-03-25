@@ -1258,18 +1258,11 @@
                       && curHoriz === isHorizBar;
 
     if (canReuse) {
-      // Patch data
+      // Replace data references — Chart.js v4 re-reads these on update('none').
+      // (Object.assign into existing dataset objects is NOT reliable because
+      //  Chart.js caches computed element styles and may ignore mutations.)
       chartInstance.data.labels   = cfg.labels;
-      // Splice datasets to match length (add/remove without recreating)
-      while (chartInstance.data.datasets.length > datasets.length)
-        chartInstance.data.datasets.pop();
-      datasets.forEach((ds, i) => {
-        if (chartInstance.data.datasets[i]) {
-          Object.assign(chartInstance.data.datasets[i], ds);
-        } else {
-          chartInstance.data.datasets.push(ds);
-        }
-      });
+      chartInstance.data.datasets = datasets;
 
       // Patch options
       chartInstance.options.layout.padding.top = titlePad;
