@@ -1304,54 +1304,57 @@
     return el;
   }
 
-  function externalTooltip({ chart, tooltip }) {
+  // Show tooltip at canvas-relative position (chartX, chartY) for a given data point.
+  // We drive this ourselves from onOvMove — Chart.js never sees hover events because
+  // the overlay canvas absorbs them all.
+  function showTooltip(chartX, chartY, dataIndex) {
     const el = getTooltipEl();
+    const label = cfg.labels[dataIndex] ?? '';
 
-    // If tooltip is hidden and not pinned → hide the div
-    if (tooltip.opacity === 0) {
-      if (tooltipPinnedX === null) el.style.display = 'none';
-      return; // keep showing last content when pinned
-    }
-
-    // Build HTML content
-    const title = tooltip.title?.[0] ?? '';
-    let html = title ? `<div class="tt-title">${title}</div>` : '';
-    (tooltip.dataPoints ?? []).forEach(dp => {
-      const ds  = chart.data.datasets[dp.datasetIndex];
-      const bg  = Array.isArray(ds.backgroundColor)
-        ? ds.backgroundColor[dp.dataIndex]
-        : ds.backgroundColor;
+    let html = label ? `<div class="tt-title">${label}</div>` : '';
+    // Show all datasets' values for this label index
+    cfg.datasets.forEach(ds => {
+      const color = (ds.colors ?? [])[dataIndex] ?? ds.color ?? '#6366f1';
+      const value = ds.data[dataIndex];
+      if (value === undefined || value === null || value === '') return;
       html += `<div class="tt-row">
-        <span class="tt-swatch" style="background:${bg}"></span>
+        <span class="tt-swatch" style="background:${color}"></span>
         <span class="tt-label">${ds.label}</span>
-        <span class="tt-val">${dp.formattedValue}</span>
+        <span class="tt-val">${value}</span>
       </div>`;
     });
     html += `<div class="tt-hint">drag to move &nbsp;·&nbsp; double-click to dismiss</div>`;
     el.innerHTML = html;
     el.style.display = 'block';
 
-    // Position: use pinned coords if set, else follow the caret naturally
     if (tooltipPinnedX !== null) {
+      // Pinned — keep at stored position, just refresh content
       el.style.left = tooltipPinnedX + 'px';
       el.style.top  = tooltipPinnedY + 'px';
     } else {
       const wrapper = document.getElementById('canvas-wrapper');
-      const wRect   = wrapper.getBoundingClientRect();
-      const cRect   = chart.canvas.getBoundingClientRect();
-      const offsetX = cRect.left - wRect.left;
-      const offsetY = cRect.top  - wRect.top;
-      // Try to keep tooltip from clipping the right/bottom edge
-      const elW = el.offsetWidth  || 150;
-      const elH = el.offsetHeight || 80;
-      let x = offsetX + tooltip.caretX + 14;
-      let y = offsetY + tooltip.caretY - elH / 2;
-      if (x + elW > wrapper.clientWidth  - 8) x = offsetX + tooltip.caretX - elW - 14;
+      const chartCanvas = document.getElementById('chart-canvas');
+      const wRect = wrapper.getBoundingClientRect();
+      const cRect = chartCanvas.getBoundingClientRect();
+      const offX  = cRect.left - wRect.left;
+      const offY  = cRect.top  - wRect.top;
+      const elW   = el.offsetWidth  || 150;
+      const elH   = el.offsetHeight || 80;
+      let x = offX + chartX + 14;
+      let y = offY + chartY - elH / 2;
+      // Flip left if clipping right edge; clamp vertical
+      if (x + elW > wrapper.clientWidth  - 8) x = offX + chartX - elW - 14;
       if (y + elH > wrapper.clientHeight - 8) y = wrapper.clientHeight - elH - 8;
       if (y < 4) y = 4;
       el.style.left = x + 'px';
       el.style.top  = y + 'px';
     }
+  }
+
+  function hideTooltip() {
+    if (tooltipPinnedX !== null) return; // keep visible when pinned
+    const el = document.getElementById('tooltip-float');
+    if (el) el.style.display = 'none';
   }
 
   function render() {
@@ -1448,10 +1451,7 @@
           },
           title:          { display: false },
           customElements: {},
-          tooltip: {
-            enabled:  false,          // disable the built-in canvas tooltip
-            external: externalTooltip, // render our draggable HTML tooltip instead
-          },
+          tooltip: { enabled: false }, // we render our own draggable HTML tooltip
         },
         scales,
       },
@@ -1914,6 +1914,12 @@
     const z  = getHitZone(p.x, p.y);
     if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
     ov.style.cursor = z ? (DRAGGABLE_TYPES.includes(z?.type) ? 'grab' : 'pointer') : 'default';
+    // Drive the draggable tooltip from here — overlay blocks Chart.js mouse events
+    if (z && z.type === 'series') {
+      showTooltip(p.x, p.y, z.index);
+    } else {
+      hideTooltip();
+    }
   }
 
   function onOvDown(e) {
@@ -1934,6 +1940,7 @@
   function onOvLeave() {
     if (!isDragging) { hoverZone = null; drawOverlay(); }
     document.getElementById('overlay-canvas').style.cursor = isDragging ? 'grabbing' : 'default';
+    hideTooltip();
   }
 
   function finishDrag(type, pos) {
