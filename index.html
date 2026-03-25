@@ -1337,44 +1337,60 @@
     }
   }
 
+  // Returns which snap position the cursor maps to based on nearest edge
+  function nearestSnapPos(pos, W, H, type) {
+    if (!pos) return null;
+    if (type === 'title') {
+      return pos.y < H / 2 ? 'top' : 'bottom';
+    }
+    const dT = pos.y, dB = H - pos.y, dL = pos.x, dR = W - pos.x;
+    const m  = Math.min(dT, dB, dL, dR);
+    return m === dT ? 'top' : m === dB ? 'bottom' : m === dL ? 'left' : 'right';
+  }
+
   function drawDragZones(ctx, W, H, type) {
-    const cur = dragCurrentPos;
-    const zones = type === 'title'
-      ? [ { label:'Top',    pos:'top',    x:W/2-50, y:8,     w:100, h:28 },
-          { label:'Bottom', pos:'bottom', x:W/2-50, y:H-36,  w:100, h:28 } ]
-      : [ { label:'Top',    pos:'top',    x:W/2-50, y:8,     w:100, h:28 },
-          { label:'Bottom', pos:'bottom', x:W/2-50, y:H-36,  w:100, h:28 },
-          { label:'Left',   pos:'left',   x:8,      y:H/2-14,w:80,  h:28 },
-          { label:'Right',  pos:'right',  x:W-88,   y:H/2-14,w:80,  h:28 } ];
+    const cur     = dragCurrentPos;
+    const active  = nearestSnapPos(cur, W, H, type);
 
     // Dim background
-    ctx.fillStyle = 'rgba(6,11,24,0.35)';
-    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = 'rgba(6,11,24,0.25)';
+    ctx.fillRect(0, 0, W, H);
 
-    zones.forEach(z => {
-      const hit = cur && cur.x>=z.x && cur.x<=z.x+z.w && cur.y>=z.y && cur.y<=z.y+z.h;
-      ctx.fillStyle   = hit ? 'rgba(99,102,241,0.45)' : 'rgba(99,102,241,0.15)';
-      ctx.strokeStyle = hit ? '#a5b4fc' : 'rgba(129,140,248,0.5)';
+    // Quadrant highlight for active zone
+    if (active) {
+      const quads = {
+        top:    [0,      0,      W,     H*0.35],
+        bottom: [0,      H*0.65, W,     H*0.35],
+        left:   [0,      0,      W*0.3, H],
+        right:  [W*0.7,  0,      W*0.3, H],
+      };
+      const [qx,qy,qw,qh] = quads[active];
+      ctx.fillStyle = 'rgba(99,102,241,0.18)';
+      ctx.fillRect(qx, qy, qw, qh);
+    }
+
+    // Label indicators in each available zone
+    const positions = type === 'title' ? ['top','bottom'] : ['top','bottom','left','right'];
+    const labelPos  = {
+      top:    { x: W/2,    y: H*0.15 },
+      bottom: { x: W/2,    y: H*0.85 },
+      left:   { x: W*0.12, y: H/2    },
+      right:  { x: W*0.88, y: H/2    },
+    };
+    positions.forEach(p => {
+      const lp  = labelPos[p];
+      const hit = p === active;
+      ctx.fillStyle   = hit ? 'rgba(99,102,241,0.55)' : 'rgba(99,102,241,0.18)';
+      ctx.strokeStyle = hit ? '#a5b4fc' : 'rgba(129,140,248,0.45)';
       ctx.lineWidth   = hit ? 2 : 1;
       ctx.setLineDash([4,2]);
-      rrect(ctx, z.x, z.y, z.w, z.h, 6);
+      rrect(ctx, lp.x-44, lp.y-14, 88, 28, 6);
       ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = hit ? '#e0e7ff' : 'rgba(165,180,252,0.85)';
-      ctx.font      = `${hit?'600':'400'} 11px Inter,sans-serif`;
+      ctx.fillStyle = hit ? '#e0e7ff' : 'rgba(165,180,252,0.8)';
+      ctx.font = `${hit?'600':'400'} 11px Inter,sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(z.label, z.x+z.w/2, z.y+z.h/2);
+      ctx.fillText(p.charAt(0).toUpperCase()+p.slice(1), lp.x, lp.y);
     });
-
-    // Floating label under cursor
-    if (cur) {
-      ctx.fillStyle = 'rgba(13,20,36,0.85)';
-      rrect(ctx, cur.x-36, cur.y-14, 72, 24, 5);
-      ctx.fill();
-      ctx.fillStyle = '#c7d2fe';
-      ctx.font = '11px Inter,sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(type==='title'?'Title':'Legend', cur.x, cur.y);
-    }
   }
 
   // ── Event handlers ──
@@ -1445,20 +1461,14 @@
   }
 
   function finishDrag(type, pos) {
-    const ov = document.getElementById('overlay-canvas');
-    const W = ov.width, H = ov.height;
-    const zones = type === 'title'
-      ? [{pos:'top',x:W/2-50,y:8,w:100,h:28},{pos:'bottom',x:W/2-50,y:H-36,w:100,h:28}]
-      : [{pos:'top',x:W/2-50,y:8,w:100,h:28},{pos:'bottom',x:W/2-50,y:H-36,w:100,h:28},
-         {pos:'left',x:8,y:H/2-14,w:80,h:28},{pos:'right',x:W-88,y:H/2-14,w:80,h:28}];
-    const hit = zones.find(z => pos.x>=z.x && pos.x<=z.x+z.w && pos.y>=z.y && pos.y<=z.y+z.h);
-    if (hit) {
-      if (type === 'legend') cfg.style.legend.position = hit.pos;
-      if (type === 'title')  cfg.style.title.position  = hit.pos;
-      render();
-      // Re-select after render
-      setTimeout(() => { selectZone({ type }, null); }, 20);
-    }
+    const ov  = document.getElementById('overlay-canvas');
+    const W   = ov.width, H = ov.height;
+    const newPos = nearestSnapPos(pos, W, H, type);
+    if (!newPos) return;
+    if (type === 'legend') cfg.style.legend.position = newPos;
+    if (type === 'title')  cfg.style.title.position  = newPos;
+    render();
+    setTimeout(() => { selectZone({ type }, null); }, 20);
   }
 
   function selectZone(zone, p) {
