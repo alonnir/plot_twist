@@ -264,10 +264,11 @@
     #chart-canvas { max-width: 100%; max-height: 100%; }
 
     /* ── Inspector overlay ── */
-    #chart-hit-layer {
-      position: absolute; inset: 0;
+    #overlay-canvas {
+      position: absolute;
       pointer-events: all;
       cursor: default;
+      touch-action: none;
     }
     #inspector {
       position: absolute;
@@ -635,7 +636,7 @@
         <div class="stage-body">
           <div id="canvas-wrapper">
             <canvas id="chart-canvas"></canvas>
-            <div id="chart-hit-layer"></div>
+            <canvas id="overlay-canvas"></canvas>
             <div id="inspector">
               <div class="insp-header">
                 <span class="insp-title" id="insp-title-label">Element</span>
@@ -815,10 +816,11 @@
       }],
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
       style: {
-        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700' },
+        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', position: 'top' },
         xlabel:  { fontSize: 13, color: '#475569' },
         ylabel:  { fontSize: 13, color: '#475569' },
-        ticks:   { fontSize: 12, color: '#475569' },
+        xticks:  { fontSize: 12, color: '#475569' },
+        yticks:  { fontSize: 12, color: '#475569' },
         legend:  { fontSize: 13, color: '#1e293b', position: 'top' },
       },
     };
@@ -1066,12 +1068,12 @@
     const scales = isArc ? {} : {
       x: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: s.ticks.color, font: { size: s.ticks.fontSize } },
+        ticks: { color: s.xticks.color, font: { size: s.xticks.fontSize } },
         title: { display: !!cfg.xAxisLabel, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
       },
       y: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: s.ticks.color, font: { size: s.ticks.fontSize } },
+        ticks: { color: s.yticks.color, font: { size: s.yticks.fontSize } },
         title: { display: !!cfg.yAxisLabel, text: cfg.yAxisLabel, color: s.ylabel.color, font: { size: s.ylabel.fontSize } },
       },
     };
@@ -1093,11 +1095,12 @@
             labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
           },
           title: {
-            display: !!cfg.title,
-            text:    cfg.title,
-            color:   s.title.color,
-            font:    { size: s.title.fontSize, weight: s.title.fontWeight, family: s.title.fontFamily },
-            padding: { bottom: 16 },
+            display:  !!cfg.title,
+            text:     cfg.title,
+            position: s.title.position || 'top',
+            color:    s.title.color,
+            font:     { size: s.title.fontSize, weight: s.title.fontWeight, family: s.title.fontFamily },
+            padding:  { top: 4, bottom: 4 },
           },
           tooltip: {
             backgroundColor: '#0f172a',
@@ -1117,7 +1120,7 @@
   }
 
   /* ─────────────────────────────────────────────
-     INSPECTOR / HIT LAYER
+     INSPECTOR / OVERLAY CANVAS
   ───────────────────────────────────────────── */
   const FONTS = [
     { label: 'Space Grotesk',  value: "'Space Grotesk', sans-serif" },
@@ -1127,183 +1130,425 @@
     { label: 'Arial',          value: 'Arial, sans-serif' },
   ];
 
-  function setupHitLayer() {
-    const hit = document.getElementById('chart-hit-layer');
-    hit.onmousemove = onHitMove;
-    hit.onclick     = onHitClick;
-    hit.onmouseleave = () => { hit.style.cursor = 'default'; };
+  let selectedZone  = null;
+  let hoverZone     = null;
+  let isDragging    = false;
+  let dragZone      = null;
+  let dragCurrentPos = null;
+
+  // ── Sync overlay canvas to sit exactly over the chart canvas ──
+  function syncOverlay() {
+    const chart   = document.getElementById('chart-canvas');
+    const overlay = document.getElementById('overlay-canvas');
+    const wrapRect = document.getElementById('canvas-wrapper').getBoundingClientRect();
+    const chartRect = chart.getBoundingClientRect();
+    overlay.style.left   = (chartRect.left - wrapRect.left) + 'px';
+    overlay.style.top    = (chartRect.top  - wrapRect.top)  + 'px';
+    overlay.style.width  = chartRect.width  + 'px';
+    overlay.style.height = chartRect.height + 'px';
+    // Use CSS pixel dimensions so coords match chartArea (which is in CSS px)
+    overlay.width  = Math.round(chartRect.width);
+    overlay.height = Math.round(chartRect.height);
   }
 
-  function getHitZone(ex, ey) {
+  function setupHitLayer() {
+    syncOverlay();
+    const ov = document.getElementById('overlay-canvas');
+    ov.onmousemove  = onOvMove;
+    ov.onmousedown  = onOvDown;
+    ov.onmouseup    = onOvUp;
+    ov.onmouseleave = onOvLeave;
+  }
+
+  // ── Convert client coords to canvas-relative CSS px ──
+  function cssCoords(e) {
+    const r = document.getElementById('overlay-canvas').getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  // ── Hit detection using Chart.js internal layout boxes ──
+  function getHitZone(cx, cy) {
     if (!chartInstance) return null;
-    const canvas = document.getElementById('chart-canvas');
-    const rect   = canvas.getBoundingClientRect();
-    const wrap   = document.getElementById('canvas-wrapper').getBoundingClientRect();
-    // offset relative to canvas
-    const cx = ex - rect.left;
-    const cy = ey - rect.top;
-    if (cx < 0 || cy < 0 || cx > rect.width || cy > rect.height) return null;
+    const ca  = chartInstance.chartArea;
+    const chart = document.getElementById('chart-canvas');
 
-    const ca = chartInstance.chartArea;  // CSS-px coords within canvas
-
-    // Data element (bar / point / slice)
-    const native = { clientX: ex, clientY: ey, target: canvas,
-      offsetX: cx * (canvas.width / rect.width),
-      offsetY: cy * (canvas.height / rect.height) };
+    // 1. Data elements
+    const native = { clientX: chart.getBoundingClientRect().left + cx,
+                     clientY: chart.getBoundingClientRect().top  + cy,
+                     target: chart };
     const els = chartInstance.getElementsAtEventForMode(native, 'nearest', { intersect: true }, false);
     if (els.length) return { type: 'series', datasetIndex: els[0].datasetIndex, index: els[0].index };
 
-    // Title (above chart area)
-    if (cfg.title && cy < ca.top) return { type: 'title' };
+    // 2. Title block
+    const tb = chartInstance.titleBlock;
+    if (tb && cfg.title && cx >= tb.left && cx <= tb.right && cy >= tb.top && cy <= tb.bottom)
+      return { type: 'title' };
 
-    // Legend
+    // 3. Legend
     const leg = chartInstance.legend;
-    if (leg && cfg.options.showLegend) {
-      if (cx >= leg.left && cx <= leg.right && cy >= leg.top && cy <= leg.bottom)
-        return { type: 'legend' };
+    if (leg && cfg.options.showLegend && cx >= leg.left && cx <= leg.right && cy >= leg.top && cy <= leg.bottom)
+      return { type: 'legend' };
+
+    // 4. X scale area (below chart area)
+    const scX = chartInstance.scales?.x;
+    if (scX && cy > ca.bottom && cy <= scX.bottom && cx >= scX.left && cx <= scX.right) {
+      // Axis title is in the last ~22px of the scale
+      if (cfg.xAxisLabel && cy > scX.bottom - 22) return { type: 'xlabel' };
+      return { type: 'xticks' };
     }
 
-    // X-axis label (below chart area, centre band)
-    if (cfg.xAxisLabel && cy > ca.bottom && cx >= ca.left && cx <= ca.right)
-      return { type: 'xlabel' };
-
-    // Y-axis label (left of chart area)
-    if (cfg.yAxisLabel && cx < ca.left && cy >= ca.top && cy <= ca.bottom)
-      return { type: 'ylabel' };
+    // 5. Y scale area (left of chart area)
+    const scY = chartInstance.scales?.y;
+    if (scY && cx < ca.left && cx >= scY.left && cy >= scY.top && cy <= scY.bottom) {
+      if (cfg.yAxisLabel && cx < scY.left + 22) return { type: 'ylabel' };
+      return { type: 'yticks' };
+    }
 
     return null;
   }
 
-  function onHitMove(e) {
-    const zone = getHitZone(e.clientX, e.clientY);
-    document.getElementById('chart-hit-layer').style.cursor = zone ? 'pointer' : 'default';
+  // ── Get bounding box [l,t,r,b] for each zone (in overlay CSS px) ──
+  function getZoneBounds(zone) {
+    if (!chartInstance || !zone) return null;
+    const ca = chartInstance.chartArea;
+    switch (zone.type) {
+      case 'title': {
+        const tb = chartInstance.titleBlock;
+        return tb ? [tb.left, tb.top, tb.right, tb.bottom] : null;
+      }
+      case 'legend': {
+        const l = chartInstance.legend;
+        return l ? [l.left, l.top, l.right, l.bottom] : null;
+      }
+      case 'xlabel': {
+        const sc = chartInstance.scales?.x;
+        return sc ? [ca.left, sc.bottom - 22, ca.right, sc.bottom] : null;
+      }
+      case 'ylabel': {
+        const sc = chartInstance.scales?.y;
+        return sc ? [sc.left, ca.top, sc.left + 22, ca.bottom] : null;
+      }
+      case 'xticks': {
+        const sc = chartInstance.scales?.x;
+        if (!sc) return null;
+        return [ca.left, ca.bottom, ca.right, sc.bottom - (cfg.xAxisLabel ? 22 : 0)];
+      }
+      case 'yticks': {
+        const sc = chartInstance.scales?.y;
+        if (!sc) return null;
+        return [sc.left + (cfg.yAxisLabel ? 22 : 0), ca.top, ca.left, ca.bottom];
+      }
+      case 'series': {
+        try {
+          const el = chartInstance.getDatasetMeta(zone.datasetIndex)?.data?.[zone.index];
+          if (!el) return null;
+          const p = el.getProps(['x','y','base','width','height'], true);
+          if (p.width !== undefined) {
+            const x1 = p.x - (p.width||20)/2, y1 = Math.min(p.y, p.base||p.y);
+            return [x1, y1, x1+(p.width||20), Math.max(p.y, p.base||p.y)];
+          }
+          const r = (el.options?.radius||5) + 4;
+          return [p.x-r, p.y-r, p.x+r, p.y+r];
+        } catch { return null; }
+      }
+    }
+    return null;
   }
 
-  function onHitClick(e) {
-    const zone = getHitZone(e.clientX, e.clientY);
-    if (!zone) { closeInspector(); return; }
-    const canvas = document.getElementById('chart-canvas');
-    const rect   = canvas.getBoundingClientRect();
-    const wrap   = document.getElementById('canvas-wrapper');
-    const wRect  = wrap.getBoundingClientRect();
-    // position relative to canvas-wrapper
-    const px = e.clientX - wRect.left;
-    const py = e.clientY - wRect.top;
-    openInspector(zone, px, py);
+  function zonesEqual(a, b) {
+    if (!a || !b || a.type !== b.type) return false;
+    if (a.type === 'series') return a.datasetIndex === b.datasetIndex && a.index === b.index;
+    return true;
+  }
+
+  // ── Drawing helpers ──
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) { ctx.roundRect(x,y,w,h,r); }
+    else {
+      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+      ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+      ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+      ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+    }
+  }
+
+  function drawOverlay() {
+    const ov = document.getElementById('overlay-canvas');
+    if (!ov || !chartInstance) return;
+    const ctx = ov.getContext('2d');
+    ctx.clearRect(0,0,ov.width,ov.height);
+
+    if (isDragging && dragZone) {
+      drawDragZones(ctx, ov.width, ov.height, dragZone.type);
+      return;
+    }
+
+    // Hover highlight
+    if (hoverZone && !zonesEqual(hoverZone, selectedZone)) {
+      const b = getZoneBounds(hoverZone);
+      if (b) {
+        ctx.fillStyle = 'rgba(129,140,248,0.09)';
+        rrect(ctx, b[0], b[1], b[2]-b[0], b[3]-b[1], 3);
+        ctx.fill();
+      }
+    }
+
+    // Selection outline
+    if (selectedZone) {
+      const b = getZoneBounds(selectedZone);
+      if (b) {
+        const w = b[2]-b[0], h = b[3]-b[1];
+        ctx.fillStyle = 'rgba(99,102,241,0.07)';
+        rrect(ctx, b[0], b[1], w, h, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#818cf8';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5,3]);
+        rrect(ctx, b[0]+1, b[1]+1, w-2, h-2, 3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Corner handles
+        ctx.fillStyle = '#818cf8';
+        [[b[0],b[1]],[b[2],b[1]],[b[0],b[3]],[b[2],b[3]]].forEach(([x,y])=>{
+          ctx.fillRect(x-3,y-3,6,6);
+        });
+        // Drag hint for draggable zones
+        if (['legend','title'].includes(selectedZone.type)) {
+          ctx.fillStyle = 'rgba(99,102,241,0.75)';
+          ctx.font = '10px Inter,sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.fillText('⠿ drag', b[2]-2, b[1]+2);
+        }
+      }
+    }
+  }
+
+  function drawDragZones(ctx, W, H, type) {
+    const cur = dragCurrentPos;
+    const zones = type === 'title'
+      ? [ { label:'Top',    pos:'top',    x:W/2-50, y:8,     w:100, h:28 },
+          { label:'Bottom', pos:'bottom', x:W/2-50, y:H-36,  w:100, h:28 } ]
+      : [ { label:'Top',    pos:'top',    x:W/2-50, y:8,     w:100, h:28 },
+          { label:'Bottom', pos:'bottom', x:W/2-50, y:H-36,  w:100, h:28 },
+          { label:'Left',   pos:'left',   x:8,      y:H/2-14,w:80,  h:28 },
+          { label:'Right',  pos:'right',  x:W-88,   y:H/2-14,w:80,  h:28 } ];
+
+    // Dim background
+    ctx.fillStyle = 'rgba(6,11,24,0.35)';
+    ctx.fillRect(0,0,W,H);
+
+    zones.forEach(z => {
+      const hit = cur && cur.x>=z.x && cur.x<=z.x+z.w && cur.y>=z.y && cur.y<=z.y+z.h;
+      ctx.fillStyle   = hit ? 'rgba(99,102,241,0.45)' : 'rgba(99,102,241,0.15)';
+      ctx.strokeStyle = hit ? '#a5b4fc' : 'rgba(129,140,248,0.5)';
+      ctx.lineWidth   = hit ? 2 : 1;
+      ctx.setLineDash([4,2]);
+      rrect(ctx, z.x, z.y, z.w, z.h, 6);
+      ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = hit ? '#e0e7ff' : 'rgba(165,180,252,0.85)';
+      ctx.font      = `${hit?'600':'400'} 11px Inter,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(z.label, z.x+z.w/2, z.y+z.h/2);
+    });
+
+    // Floating label under cursor
+    if (cur) {
+      ctx.fillStyle = 'rgba(13,20,36,0.85)';
+      rrect(ctx, cur.x-36, cur.y-14, 72, 24, 5);
+      ctx.fill();
+      ctx.fillStyle = '#c7d2fe';
+      ctx.font = '11px Inter,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(type==='title'?'Title':'Legend', cur.x, cur.y);
+    }
+  }
+
+  // ── Event handlers ──
+  function onOvMove(e) {
+    const p = cssCoords(e);
+    if (isDragging) {
+      dragCurrentPos = p;
+      drawOverlay();
+      document.getElementById('overlay-canvas').style.cursor = 'grabbing';
+      return;
+    }
+    const z = getHitZone(p.x, p.y);
+    if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
+    const ov = document.getElementById('overlay-canvas');
+    ov.style.cursor = z ? (zonesEqual(z, selectedZone) && ['legend','title'].includes(z?.type) ? 'grab' : 'pointer') : 'default';
+  }
+
+  function onOvDown(e) {
+    const p = cssCoords(e);
+    const z = getHitZone(p.x, p.y);
+    if (!z) { selectZone(null); return; }
+
+    if (zonesEqual(z, selectedZone) && ['legend','title'].includes(z.type)) {
+      // Start drag
+      isDragging = true;
+      dragZone   = z;
+      dragCurrentPos = p;
+      document.getElementById('overlay-canvas').style.cursor = 'grabbing';
+      drawOverlay();
+    } else {
+      selectZone(z, p);
+    }
+  }
+
+  function onOvUp(e) {
+    if (isDragging && dragZone && dragCurrentPos) {
+      finishDrag(dragZone.type, dragCurrentPos);
+    }
+    isDragging = false; dragZone = null; dragCurrentPos = null;
+    drawOverlay();
+    document.getElementById('overlay-canvas').style.cursor = 'default';
+  }
+
+  function onOvLeave() {
+    if (isDragging) { onOvUp({}); }
+    hoverZone = null;
+    document.getElementById('overlay-canvas').style.cursor = 'default';
+    drawOverlay();
+  }
+
+  function finishDrag(type, pos) {
+    const ov = document.getElementById('overlay-canvas');
+    const W = ov.width, H = ov.height;
+    const zones = type === 'title'
+      ? [{pos:'top',x:W/2-50,y:8,w:100,h:28},{pos:'bottom',x:W/2-50,y:H-36,w:100,h:28}]
+      : [{pos:'top',x:W/2-50,y:8,w:100,h:28},{pos:'bottom',x:W/2-50,y:H-36,w:100,h:28},
+         {pos:'left',x:8,y:H/2-14,w:80,h:28},{pos:'right',x:W-88,y:H/2-14,w:80,h:28}];
+    const hit = zones.find(z => pos.x>=z.x && pos.x<=z.x+z.w && pos.y>=z.y && pos.y<=z.y+z.h);
+    if (hit) {
+      if (type === 'legend') cfg.style.legend.position = hit.pos;
+      if (type === 'title')  cfg.style.title.position  = hit.pos;
+      render();
+      // Re-select after render
+      setTimeout(() => { selectZone({ type }, null); }, 20);
+    }
+  }
+
+  function selectZone(zone, p) {
+    selectedZone = zone;
+    drawOverlay();
+    if (zone) {
+      // Position inspector near click or near element bounds
+      const b = getZoneBounds(zone);
+      const wrap = document.getElementById('canvas-wrapper');
+      const ww = wrap.offsetWidth, wh = wrap.offsetHeight;
+      const ov = document.getElementById('overlay-canvas');
+      const ovRect = ov.getBoundingClientRect();
+      const wRect  = wrap.getBoundingClientRect();
+      let px = p ? p.x + (ovRect.left - wRect.left) : (b ? (b[0]+b[2])/2 + (ovRect.left - wRect.left) : ww/2);
+      let py = p ? p.y + (ovRect.top  - wRect.top)  : (b ? b[3]          + (ovRect.top  - wRect.top)  : wh/2);
+      openInspector(zone, px, py);
+    } else {
+      closeInspector();
+    }
   }
 
   function openInspector(zone, px, py) {
     const insp  = document.getElementById('inspector');
     const label = document.getElementById('insp-title-label');
     const body  = document.getElementById('insp-body');
-
     insp.style.display = 'flex';
     body.innerHTML = buildInspectorHTML(zone);
     label.textContent = {
-      title: 'Title', xlabel: 'X-Axis Label', ylabel: 'Y-Axis Label',
-      legend: 'Legend', series: 'Data Series',
+      title:'Title', xlabel:'X-Axis Label', ylabel:'Y-Axis Label',
+      legend:'Legend', series:'Data Series', xticks:'X Tick Labels', yticks:'Y Tick Labels',
     }[zone.type] || 'Element';
-
-    // Position: prefer right of click, flip if too close to edge
-    const wrap  = document.getElementById('canvas-wrapper');
-    const ww    = wrap.offsetWidth;
-    const wh    = wrap.offsetHeight;
-    const iw    = 230 + 16;
-    const left  = (px + iw < ww) ? px + 12 : px - iw + 4;
-    const top   = Math.max(8, Math.min(py - 20, wh - insp.offsetHeight - 8));
+    // Position inspector
+    const wrap = document.getElementById('canvas-wrapper');
+    const iw = 246, ih = insp.offsetHeight || 200;
+    const ww = wrap.offsetWidth, wh = wrap.offsetHeight;
+    const left = (px + iw < ww) ? px + 14 : px - iw - 4;
+    const top  = Math.max(8, Math.min(py - 20, wh - ih - 8));
     insp.style.left = left + 'px';
     insp.style.top  = top  + 'px';
-
-    // Store zone on insp for update handlers
-    insp._zone = zone;
   }
 
   function buildInspectorHTML(zone) {
     const s = cfg.style;
-    const fontOpts = FONTS.map(f =>
-      `<option value="${f.value}" ${s.title.fontFamily === f.value ? 'selected' : ''}>${f.label}</option>`
-    ).join('');
 
     if (zone.type === 'title') {
       return `
-        <div class="insp-field">
-          <span class="insp-label">Text</span>
-          <input class="insp-input" value="${escHtml(cfg.title)}" oninput="cfg.title=this.value;render()" />
-        </div>
+        <div class="insp-field"><span class="insp-label">Text</span>
+          <input class="insp-input" value="${escHtml(cfg.title)}" oninput="cfg.title=this.value;render()" /></div>
         <div class="insp-row">
-          <div class="insp-field">
-            <span class="insp-label">Size</span>
+          <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="64" value="${s.title.fontSize}"
-              oninput="cfg.style.title.fontSize=+this.value;render()" />
-          </div>
-          <div class="insp-field" style="flex:0 0 auto">
-            <span class="insp-label">Color</span>
+              oninput="cfg.style.title.fontSize=+this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${s.title.color}"
-              oninput="cfg.style.title.color=this.value;render()" />
-          </div>
+              oninput="cfg.style.title.color=this.value;render()" /></div>
         </div>
-        <div class="insp-field">
-          <span class="insp-label">Font</span>
+        <div class="insp-field"><span class="insp-label">Font</span>
           <select class="insp-select" onchange="cfg.style.title.fontFamily=this.value;render()">${
             FONTS.map(f=>`<option value="${f.value}"${s.title.fontFamily===f.value?' selected':''}>${f.label}</option>`).join('')
-          }</select>
-        </div>
-        <div class="insp-field">
-          <span class="insp-label">Weight</span>
+          }</select></div>
+        <div class="insp-field"><span class="insp-label">Weight</span>
           <select class="insp-select" onchange="cfg.style.title.fontWeight=this.value;render()">
             <option value="400"${s.title.fontWeight==='400'?' selected':''}>Regular</option>
             <option value="600"${s.title.fontWeight==='600'?' selected':''}>Semi-bold</option>
             <option value="700"${s.title.fontWeight==='700'?' selected':''}>Bold</option>
-          </select>
-        </div>`;
+          </select></div>
+        <div class="insp-field"><span class="insp-label">Position</span>
+          <select class="insp-select" onchange="cfg.style.title.position=this.value;render()">
+            <option value="top"${s.title.position==='top'?' selected':''}>Top</option>
+            <option value="bottom"${s.title.position==='bottom'?' selected':''}>Bottom</option>
+          </select></div>
+        <div class="insp-hint">⠿ Drag to reposition</div>`;
     }
 
     if (zone.type === 'xlabel' || zone.type === 'ylabel') {
-      const key = zone.type;
-      const st  = s[key];
+      const key = zone.type, st = s[key];
       const val = key === 'xlabel' ? cfg.xAxisLabel : cfg.yAxisLabel;
       return `
-        <div class="insp-field">
-          <span class="insp-label">Text</span>
+        <div class="insp-field"><span class="insp-label">Text</span>
           <input class="insp-input" value="${escHtml(val)}"
-            oninput="${key==='xlabel'?'cfg.xAxisLabel':'cfg.yAxisLabel'}=this.value;render()" />
-        </div>
+            oninput="${key==='xlabel'?'cfg.xAxisLabel':'cfg.yAxisLabel'}=this.value;render()" /></div>
         <div class="insp-row">
-          <div class="insp-field">
-            <span class="insp-label">Size</span>
+          <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="40" value="${st.fontSize}"
-              oninput="cfg.style.${key}.fontSize=+this.value;render()" />
-          </div>
-          <div class="insp-field" style="flex:0 0 auto">
-            <span class="insp-label">Color</span>
+              oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${st.color}"
-              oninput="cfg.style.${key}.color=this.value;render()" />
-          </div>
+              oninput="cfg.style.${key}.color=this.value;render()" /></div>
+        </div>`;
+    }
+
+    if (zone.type === 'xticks' || zone.type === 'yticks') {
+      const key = zone.type, st = s[key];
+      return `
+        <div class="insp-row">
+          <div class="insp-field"><span class="insp-label">Size</span>
+            <input class="insp-input" type="number" min="6" max="32" value="${st.fontSize}"
+              oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${st.color}"
+              oninput="cfg.style.${key}.color=this.value;render()" /></div>
         </div>`;
     }
 
     if (zone.type === 'legend') {
       return `
-        <div class="insp-field">
-          <span class="insp-label">Position</span>
+        <div class="insp-field"><span class="insp-label">Position</span>
           <select class="insp-select" onchange="cfg.style.legend.position=this.value;render()">
             ${['top','bottom','left','right'].map(p=>
               `<option value="${p}"${s.legend.position===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
             ).join('')}
-          </select>
-        </div>
+          </select></div>
         <div class="insp-row">
-          <div class="insp-field">
-            <span class="insp-label">Size</span>
+          <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="32" value="${s.legend.fontSize}"
-              oninput="cfg.style.legend.fontSize=+this.value;render()" />
-          </div>
-          <div class="insp-field" style="flex:0 0 auto">
-            <span class="insp-label">Color</span>
+              oninput="cfg.style.legend.fontSize=+this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${s.legend.color}"
-              oninput="cfg.style.legend.color=this.value;render()" />
-          </div>
-        </div>`;
+              oninput="cfg.style.legend.color=this.value;render()" /></div>
+        </div>
+        <div class="insp-hint">⠿ Drag to reposition</div>`;
     }
 
     if (zone.type === 'series') {
@@ -1312,43 +1557,34 @@
       if (isArc) {
         const col = (ds.colors && ds.colors[zone.index]) || PALETTE[zone.index % PALETTE.length];
         return `
-          <div class="insp-field">
-            <span class="insp-label">Slice: ${escHtml(cfg.labels[zone.index] || '')}</span>
-          </div>
+          <div class="insp-field"><span class="insp-label">Label: ${escHtml(cfg.labels[zone.index]||'')}</span></div>
           <div class="insp-row">
-            <div class="insp-field">
-              <span class="insp-label">Color</span>
+            <div class="insp-field"><span class="insp-label">Color</span>
               <input type="color" class="insp-color" value="${col}"
-                oninput="cfg.datasets[${zone.datasetIndex}].colors[${zone.index}]=this.value;render()" />
-            </div>
-          </div>
-          <div class="insp-hint">Click label in legend to rename</div>`;
+                oninput="cfg.datasets[${zone.datasetIndex}].colors[${zone.index}]=this.value;render()" /></div>
+          </div>`;
       }
       return `
-        <div class="insp-field">
-          <span class="insp-label">Series Name</span>
+        <div class="insp-field"><span class="insp-label">Series</span>
           <input class="insp-input" value="${escHtml(ds.label)}"
-            oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" />
-        </div>
+            oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" /></div>
         <div class="insp-row">
-          <div class="insp-field">
-            <span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${ds.color || PALETTE[zone.datasetIndex % PALETTE.length]}"
-              oninput="cfg.datasets[${zone.datasetIndex}].color=this.value;render()" />
-          </div>
-          <div class="insp-field">
-            <span class="insp-label">Value</span>
+          <div class="insp-field"><span class="insp-label">Color</span>
+            <input type="color" class="insp-color" value="${ds.color||PALETTE[zone.datasetIndex%PALETTE.length]}"
+              oninput="cfg.datasets[${zone.datasetIndex}].color=this.value;render()" /></div>
+          <div class="insp-field"><span class="insp-label">Value</span>
             <input class="insp-input" type="number" value="${ds.data[zone.index]}"
-              oninput="cfg.datasets[${zone.datasetIndex}].data[${zone.index}]=+this.value;render()" />
-          </div>
+              oninput="cfg.datasets[${zone.datasetIndex}].data[${zone.index}]=+this.value;render()" /></div>
         </div>
-        <div class="insp-hint">Point: ${escHtml(cfg.labels[zone.index] || String(zone.index))}</div>`;
+        <div class="insp-hint">${escHtml(cfg.labels[zone.index]||String(zone.index))}</div>`;
     }
     return '';
   }
 
   function closeInspector() {
+    selectedZone = null;
     document.getElementById('inspector').style.display = 'none';
+    drawOverlay();
   }
 
   function escHtml(s) {
