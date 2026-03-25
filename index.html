@@ -536,6 +536,39 @@
     .tbl-uncertain-flag:hover { color: #f59e0b; }
     .tbl-cell-inner { display: flex; align-items: center; }
 
+    /* ── Draggable tooltip ─────────────────────────── */
+    .tooltip-float {
+      position: absolute;
+      pointer-events: auto;
+      z-index: 200;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      padding: 9px 12px 7px;
+      font-size: 12px;
+      font-family: 'Space Grotesk', sans-serif;
+      line-height: 1.5;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,.45);
+      min-width: 90px;
+      display: none;
+    }
+    .tooltip-float:active { cursor: grabbing; }
+    .tt-title {
+      font-weight: 600; color: #f1f5f9;
+      margin-bottom: 5px;
+    }
+    .tt-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    .tt-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; display: inline-block; }
+    .tt-label  { color: #94a3b8; }
+    .tt-val    { color: #f1f5f9; font-weight: 500; margin-left: auto; padding-left: 10px; }
+    .tt-hint   {
+      color: #334155; font-size: 10px;
+      margin-top: 6px; border-top: 1px solid #1e293b;
+      padding-top: 5px; text-align: center; letter-spacing: .02em;
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -1235,6 +1268,92 @@
     });
   }
 
+  /* ─────────────────────────────────────────────
+     DRAGGABLE EXTERNAL TOOLTIP
+  ───────────────────────────────────────────── */
+  function getTooltipEl() {
+    let el = document.getElementById('tooltip-float');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'tooltip-float';
+      el.className = 'tooltip-float';
+
+      el.addEventListener('mousedown', e => {
+        tooltipDragging = true;
+        tooltipDragSX   = e.clientX;
+        tooltipDragSY   = e.clientY;
+        tooltipDragOX   = tooltipPinnedX ?? parseFloat(el.style.left) ?? 0;
+        tooltipDragOY   = tooltipPinnedY ?? parseFloat(el.style.top)  ?? 0;
+        // Pin immediately so it doesn't jump on first drag
+        tooltipPinnedX  = tooltipDragOX;
+        tooltipPinnedY  = tooltipDragOY;
+        e.stopPropagation();
+        e.preventDefault();
+      });
+
+      // Double-click → unpin and hide until next hover
+      el.addEventListener('dblclick', e => {
+        tooltipPinnedX = null;
+        tooltipPinnedY = null;
+        el.style.display = 'none';
+        e.stopPropagation();
+      });
+
+      document.getElementById('canvas-wrapper').appendChild(el);
+    }
+    return el;
+  }
+
+  function externalTooltip({ chart, tooltip }) {
+    const el = getTooltipEl();
+
+    // If tooltip is hidden and not pinned → hide the div
+    if (tooltip.opacity === 0) {
+      if (tooltipPinnedX === null) el.style.display = 'none';
+      return; // keep showing last content when pinned
+    }
+
+    // Build HTML content
+    const title = tooltip.title?.[0] ?? '';
+    let html = title ? `<div class="tt-title">${title}</div>` : '';
+    (tooltip.dataPoints ?? []).forEach(dp => {
+      const ds  = chart.data.datasets[dp.datasetIndex];
+      const bg  = Array.isArray(ds.backgroundColor)
+        ? ds.backgroundColor[dp.dataIndex]
+        : ds.backgroundColor;
+      html += `<div class="tt-row">
+        <span class="tt-swatch" style="background:${bg}"></span>
+        <span class="tt-label">${ds.label}</span>
+        <span class="tt-val">${dp.formattedValue}</span>
+      </div>`;
+    });
+    html += `<div class="tt-hint">drag to move &nbsp;·&nbsp; double-click to dismiss</div>`;
+    el.innerHTML = html;
+    el.style.display = 'block';
+
+    // Position: use pinned coords if set, else follow the caret naturally
+    if (tooltipPinnedX !== null) {
+      el.style.left = tooltipPinnedX + 'px';
+      el.style.top  = tooltipPinnedY + 'px';
+    } else {
+      const wrapper = document.getElementById('canvas-wrapper');
+      const wRect   = wrapper.getBoundingClientRect();
+      const cRect   = chart.canvas.getBoundingClientRect();
+      const offsetX = cRect.left - wRect.left;
+      const offsetY = cRect.top  - wRect.top;
+      // Try to keep tooltip from clipping the right/bottom edge
+      const elW = el.offsetWidth  || 150;
+      const elH = el.offsetHeight || 80;
+      let x = offsetX + tooltip.caretX + 14;
+      let y = offsetY + tooltip.caretY - elH / 2;
+      if (x + elW > wrapper.clientWidth  - 8) x = offsetX + tooltip.caretX - elW - 14;
+      if (y + elH > wrapper.clientHeight - 8) y = wrapper.clientHeight - elH - 8;
+      if (y < 4) y = 4;
+      el.style.left = x + 'px';
+      el.style.top  = y + 'px';
+    }
+  }
+
   function render() {
     const canvas  = document.getElementById('chart-canvas');
     const wrapper = document.getElementById('canvas-wrapper');
@@ -1330,13 +1449,8 @@
           title:          { display: false },
           customElements: {},
           tooltip: {
-            backgroundColor: '#0f172a',
-            titleColor:      '#f1f5f9',
-            bodyColor:       '#cbd5e1',
-            borderColor:     '#334155',
-            borderWidth:     1,
-            padding:         10,
-            cornerRadius:    6,
+            enabled:  false,          // disable the built-in canvas tooltip
+            external: externalTooltip, // render our draggable HTML tooltip instead
           },
         },
         scales,
@@ -1364,6 +1478,15 @@
   let dragCurrentPos = null;
   let dragStartPos   = null;
   const DRAG_THRESHOLD = 5; // px movement before drag activates
+
+  // ── Tooltip drag state ──────────────────────────────────────────────────
+  let tooltipPinnedX  = null; // null = follow cursor; number = pinned
+  let tooltipPinnedY  = null;
+  let tooltipDragging = false;
+  let tooltipDragSX   = 0;
+  let tooltipDragSY   = 0;
+  let tooltipDragOX   = 0;
+  let tooltipDragOY   = 0;
 
   // ── Sync overlay canvas to sit exactly over the chart canvas ──
   function syncOverlay() {
@@ -2261,6 +2384,9 @@
     cfg = defaultCfg();
     undoStack = []; redoStack = [];
     updateUndoButtons();
+    tooltipPinnedX = null; tooltipPinnedY = null;
+    const ttEl = document.getElementById('tooltip-float');
+    if (ttEl) ttEl.style.display = 'none';
     setDzState('empty');
     setUploadMsg('', '');
     render();
@@ -2370,6 +2496,27 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+
+  /* ─────────────────────────────────────────────
+     TOOLTIP DRAG — global handlers
+  ───────────────────────────────────────────── */
+  document.addEventListener('mousemove', e => {
+    if (!tooltipDragging) return;
+    const x = tooltipDragOX + (e.clientX - tooltipDragSX);
+    const y = tooltipDragOY + (e.clientY - tooltipDragSY);
+    const el = document.getElementById('tooltip-float');
+    if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+    tooltipPinnedX = x;
+    tooltipPinnedY = y;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (tooltipDragging) {
+      tooltipDragging = false;
+      const el = document.getElementById('tooltip-float');
+      if (el) el.style.cursor = 'grab';
+    }
+  });
 
   /* ─────────────────────────────────────────────
      KEYBOARD SHORTCUTS (Undo/Redo)
