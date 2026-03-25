@@ -269,10 +269,13 @@
       pointer-events: all;
       cursor: default;
       touch-action: none;
+      z-index: 60;
+      user-select: none;
+      -webkit-user-select: none;
     }
     #inspector {
       position: absolute;
-      z-index: 50;
+      z-index: 70; /* above overlay canvas so inputs are clickable */
       background: var(--bg-panel);
       border: 1px solid var(--border-lt);
       border-radius: var(--r-lg);
@@ -636,7 +639,7 @@
         <div class="stage-body">
           <div id="canvas-wrapper">
             <canvas id="chart-canvas"></canvas>
-            <canvas id="overlay-canvas"></canvas>
+            <canvas id="overlay-canvas" ondragstart="return false"></canvas>
             <div id="inspector">
               <div class="insp-header">
                 <span class="insp-title" id="insp-title-label">Element</span>
@@ -1396,6 +1399,7 @@
   // ── Event handlers ──
   // Document-level handlers keep drag alive even when mouse leaves the canvas
   function onDocDragMove(e) {
+    e.preventDefault();
     const ov = document.getElementById('overlay-canvas');
     const r  = ov.getBoundingClientRect();
     const p  = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -1435,6 +1439,7 @@
   }
 
   function onOvDown(e) {
+    e.preventDefault(); // prevent browser native drag and text selection
     const p = cssCoords(e);
     const z = getHitZone(p.x, p.y);
     if (!z) { selectZone(null); return; }
