@@ -819,7 +819,7 @@
       }],
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
       style: {
-        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', position: 'top' },
+        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
         xlabel:  { fontSize: 13, color: '#475569' },
         ylabel:  { fontSize: 13, color: '#475569' },
         xticks:  { fontSize: 12, color: '#475569' },
@@ -1017,6 +1017,31 @@
   }
 
   /* ─────────────────────────────────────────────
+     CUSTOM TITLE PLUGIN  (draws title at free x/y)
+  ───────────────────────────────────────────── */
+  let dragTitleHidden = false;   // true while title is being dragged (we draw preview on overlay instead)
+
+  Chart.register({
+    id: 'customTitle',
+    afterDraw(chart) {
+      if (!cfg || !cfg.title || dragTitleHidden) return;
+      const s   = cfg.style.title;
+      const ctx = chart.ctx;
+      const W   = chart.width, H = chart.height;
+      // Default position: horizontally centred, near top
+      const x = (s.x != null) ? s.x : W / 2;
+      const y = (s.y != null) ? s.y : Math.round(s.fontSize / 2) + 6;
+      ctx.save();
+      ctx.font         = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+      ctx.fillStyle    = s.color;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cfg.title, x, y);
+      ctx.restore();
+    },
+  });
+
+  /* ─────────────────────────────────────────────
      CHART RENDERING
   ───────────────────────────────────────────── */
   function render() {
@@ -1083,6 +1108,10 @@
 
     const chartType = (cfg.type === 'area') ? 'line' : cfg.type;
 
+    // Title is drawn by our custom afterDraw plugin at free x/y coords.
+    // When at default position (x/y null), reserve top padding so chart area doesn't overlap.
+    const titlePad = (cfg.title && s.title.x == null) ? s.title.fontSize + 14 : 0;
+
     chartInstance = new Chart(canvas, {
       type: chartType,
       data: { labels: cfg.labels, datasets },
@@ -1091,20 +1120,14 @@
         maintainAspectRatio: false,
         indexAxis: (cfg.type === 'bar' && cfg.horizontal) ? 'y' : 'x',
         animation:           { duration: 150 },
+        layout: { padding: { top: titlePad } },
         plugins: {
           legend: {
             display:  cfg.options.showLegend,
             position: s.legend.position || 'top',
             labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
           },
-          title: {
-            display:  !!cfg.title,
-            text:     cfg.title,
-            position: s.title.position || 'top',
-            color:    s.title.color,
-            font:     { size: s.title.fontSize, weight: s.title.fontWeight, family: s.title.fontFamily },
-            padding:  { top: 4, bottom: 4 },
-          },
+          title:   { display: false },   // we draw title ourselves
           tooltip: {
             backgroundColor: '#0f172a',
             titleColor:      '#f1f5f9',
@@ -1114,6 +1137,7 @@
             padding:         10,
             cornerRadius:    6,
           },
+          customTitle: {}, // triggers our registered plugin below
         },
         scales,
       },
@@ -1184,10 +1208,12 @@
     const els = chartInstance.getElementsAtEventForMode(native, 'nearest', { intersect: true }, false);
     if (els.length) return { type: 'series', datasetIndex: els[0].datasetIndex, index: els[0].index };
 
-    // 2. Title block
-    const tb = chartInstance.titleBlock;
-    if (tb && cfg.title && cx >= tb.left && cx <= tb.right && cy >= tb.top && cy <= tb.bottom)
-      return { type: 'title' };
+    // 2. Title — use our custom position bounds
+    if (cfg.title) {
+      const tb = getZoneBounds({ type: 'title' });
+      if (tb && cx >= tb[0] && cx <= tb[2] && cy >= tb[1] && cy <= tb[3])
+        return { type: 'title' };
+    }
 
     // 3. Legend
     const leg = chartInstance.legend;
@@ -1218,18 +1244,19 @@
     const ca = chartInstance.chartArea;
     switch (zone.type) {
       case 'title': {
-        const tb = chartInstance.titleBlock;
-        if (!tb) return null;
-        // Measure actual rendered text width so the hit zone hugs the text
-        const s = cfg.style?.title || {};
+        if (!cfg.title) return null;
+        const s    = cfg.style?.title || {};
+        const W    = chartInstance.width, H = chartInstance.height;
+        const cx   = (s.x != null) ? s.x : W / 2;
+        const cy   = (s.y != null) ? s.y : Math.round(s.fontSize / 2) + 6;
         const fStr = `${s.fontWeight||'700'} ${s.fontSize||18}px ${s.fontFamily||'sans-serif'}`;
         const tmpCtx = document.getElementById('chart-canvas').getContext('2d');
         tmpCtx.save(); tmpCtx.font = fStr;
-        const tw = tmpCtx.measureText(cfg.title || '').width;
+        const tw = tmpCtx.measureText(cfg.title).width;
         tmpCtx.restore();
-        const midX = (tb.left + tb.right) / 2;
-        const pad = 10;
-        return [midX - tw/2 - pad, tb.top, midX + tw/2 + pad, tb.bottom];
+        const pad = 8;
+        const th  = (s.fontSize || 18) + 4;
+        return [cx - tw/2 - pad, cy - th/2 - pad, cx + tw/2 + pad, cy + th/2 + pad];
       }
       case 'legend': {
         const l = chartInstance.legend;
@@ -1294,8 +1321,23 @@
     const ctx = ov.getContext('2d');
     ctx.clearRect(0,0,ov.width,ov.height);
 
-    if (isDragging && dragZone) {
-      drawDragZones(ctx, ov.width, ov.height, dragZone.type);
+    if (isDragging && dragZone && dragCurrentPos) {
+      if (dragZone.type === 'title') {
+        drawTitleDragPreview(ctx, ov.width, ov.height, dragCurrentPos);
+      } else {
+        // Legend: show a subtle dim + nearest-edge indicator
+        const W = ov.width, H = ov.height;
+        const p = dragCurrentPos;
+        const dT=p.y, dB=H-p.y, dL=p.x, dR=W-p.x;
+        const m = Math.min(dT,dB,dL,dR);
+        const edge = m===dT?'top': m===dB?'bottom': m===dL?'left':'right';
+        ctx.fillStyle = 'rgba(6,11,24,0.2)';
+        ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = 'rgba(99,102,241,0.7)';
+        ctx.font = 'bold 13px Inter,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(`Legend → ${edge}`, W/2, H/2);
+      }
       return;
     }
 
@@ -1340,60 +1382,59 @@
     }
   }
 
-  // Returns which snap position the cursor maps to based on nearest edge
-  function nearestSnapPos(pos, W, H, type) {
-    if (!pos) return null;
-    if (type === 'title') {
-      return pos.y < H / 2 ? 'top' : 'bottom';
+  const SNAP_DIST = 8; // px — how close before snapping to a guide
+
+  // ── Compute snap guides for a dragged element centred at (px,py) ──
+  // Returns { x, y } (snapped position) and activeGuides [{axis,value}]
+  function computeSnap(px, py, W, H) {
+    const ca = chartInstance?.chartArea;
+    let sx = px, sy = py;
+    const guides = [];
+
+    const snapX = [
+      W / 2,                          // canvas centre X
+      ca ? (ca.left + ca.right) / 2 : null,  // chart-area centre X
+    ].filter(v => v != null);
+    const snapY = [
+      H / 2,                          // canvas centre Y
+      ca ? ca.top : null,             // chart-area top edge
+    ].filter(v => v != null);
+
+    for (const gx of snapX) {
+      if (Math.abs(px - gx) < SNAP_DIST) { sx = gx; guides.push({ axis: 'x', value: gx }); break; }
     }
-    const dT = pos.y, dB = H - pos.y, dL = pos.x, dR = W - pos.x;
-    const m  = Math.min(dT, dB, dL, dR);
-    return m === dT ? 'top' : m === dB ? 'bottom' : m === dL ? 'left' : 'right';
+    for (const gy of snapY) {
+      if (Math.abs(py - gy) < SNAP_DIST) { sy = gy; guides.push({ axis: 'y', value: gy }); break; }
+    }
+    return { x: sx, y: sy, guides };
   }
 
-  function drawDragZones(ctx, W, H, type) {
-    const cur     = dragCurrentPos;
-    const active  = nearestSnapPos(cur, W, H, type);
+  // ── Draw a title preview + snap guides on the overlay canvas ──
+  function drawTitleDragPreview(ctx, W, H, pos) {
+    const { x, y, guides } = computeSnap(pos.x, pos.y, W, H);
+    const s = cfg.style.title;
 
-    // Dim background
-    ctx.fillStyle = 'rgba(6,11,24,0.25)';
-    ctx.fillRect(0, 0, W, H);
-
-    // Quadrant highlight for active zone
-    if (active) {
-      const quads = {
-        top:    [0,      0,      W,     H*0.35],
-        bottom: [0,      H*0.65, W,     H*0.35],
-        left:   [0,      0,      W*0.3, H],
-        right:  [W*0.7,  0,      W*0.3, H],
-      };
-      const [qx,qy,qw,qh] = quads[active];
-      ctx.fillStyle = 'rgba(99,102,241,0.18)';
-      ctx.fillRect(qx, qy, qw, qh);
-    }
-
-    // Label indicators in each available zone
-    const positions = type === 'title' ? ['top','bottom'] : ['top','bottom','left','right'];
-    const labelPos  = {
-      top:    { x: W/2,    y: H*0.15 },
-      bottom: { x: W/2,    y: H*0.85 },
-      left:   { x: W*0.12, y: H/2    },
-      right:  { x: W*0.88, y: H/2    },
-    };
-    positions.forEach(p => {
-      const lp  = labelPos[p];
-      const hit = p === active;
-      ctx.fillStyle   = hit ? 'rgba(99,102,241,0.55)' : 'rgba(99,102,241,0.18)';
-      ctx.strokeStyle = hit ? '#a5b4fc' : 'rgba(129,140,248,0.45)';
-      ctx.lineWidth   = hit ? 2 : 1;
-      ctx.setLineDash([4,2]);
-      rrect(ctx, lp.x-44, lp.y-14, 88, 28, 6);
-      ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = hit ? '#e0e7ff' : 'rgba(165,180,252,0.8)';
-      ctx.font = `${hit?'600':'400'} 11px Inter,sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(p.charAt(0).toUpperCase()+p.slice(1), lp.x, lp.y);
+    // Snap guide lines
+    ctx.save();
+    ctx.strokeStyle = 'rgba(239,68,68,0.75)';  // red guide lines
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 3]);
+    guides.forEach(g => {
+      ctx.beginPath();
+      if (g.axis === 'x') { ctx.moveTo(g.value, 0); ctx.lineTo(g.value, H); }
+      else                { ctx.moveTo(0, g.value); ctx.lineTo(W, g.value); }
+      ctx.stroke();
     });
+    ctx.setLineDash([]);
+
+    // Title text preview (slightly transparent)
+    ctx.globalAlpha  = 0.85;
+    ctx.font         = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+    ctx.fillStyle    = s.color;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cfg.title, x, y);
+    ctx.restore();
   }
 
   // ── Event handlers ──
@@ -1403,12 +1444,15 @@
     const ov = document.getElementById('overlay-canvas');
     const r  = ov.getBoundingClientRect();
     const p  = { x: e.clientX - r.left, y: e.clientY - r.top };
-    console.log('[PT] docMove isDragging=', isDragging, 'dragStartPos=', dragStartPos, 'p=', p);
 
     if (!isDragging && dragStartPos) {
       if (Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y) > DRAG_THRESHOLD) {
-        console.log('[PT] drag threshold crossed → isDragging=true');
         isDragging = true;
+        // Hide the chart-canvas title so the overlay preview is the only one visible
+        if (dragZone?.type === 'title') {
+          dragTitleHidden = true;
+          chartInstance?.draw();
+        }
       }
     }
     if (isDragging) {
@@ -1419,7 +1463,6 @@
   }
 
   function onDocDragUp(e) {
-    console.log('[PT] docUp isDragging=', isDragging, 'dragZone=', dragZone, 'pos=', dragCurrentPos);
     document.removeEventListener('mousemove', onDocDragMove);
     document.removeEventListener('mouseup',   onDocDragUp);
     document.body.style.cursor = '';
@@ -1427,6 +1470,10 @@
 
     if (isDragging && dragZone && dragCurrentPos) {
       finishDrag(dragZone.type, dragCurrentPos);
+    } else {
+      // Aborted drag — restore title
+      dragTitleHidden = false;
+      chartInstance?.draw();
     }
     isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
     drawOverlay();
@@ -1443,20 +1490,15 @@
   }
 
   function onOvDown(e) {
-    e.preventDefault(); // prevent browser native drag and text selection
+    e.preventDefault();
     const p = cssCoords(e);
     const z = getHitZone(p.x, p.y);
-    console.log('[PT] onOvDown zone=', z, 'p=', p);
     if (!z) { selectZone(null); return; }
-
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
-
     if (['legend','title'].includes(z.type)) {
-      dragZone     = z;
-      dragStartPos = p;
+      dragZone       = z;
+      dragStartPos   = p;
       dragCurrentPos = p;
-      console.log('[PT] drag primed for', z.type, '— attaching doc listeners');
-      // Attach document-level listeners so drag survives leaving the canvas
       document.addEventListener('mousemove', onDocDragMove);
       document.addEventListener('mouseup',   onDocDragUp);
       document.getElementById('overlay-canvas').style.cursor = 'grab';
@@ -1464,21 +1506,30 @@
   }
 
   function onOvLeave() {
-    if (!isDragging) {
-      hoverZone = null;
-      drawOverlay();
-    }
+    if (!isDragging) { hoverZone = null; drawOverlay(); }
     document.getElementById('overlay-canvas').style.cursor = isDragging ? 'grabbing' : 'default';
   }
 
   function finishDrag(type, pos) {
-    const ov  = document.getElementById('overlay-canvas');
-    const W   = ov.width, H = ov.height;
-    const newPos = nearestSnapPos(pos, W, H, type);
-    if (!newPos) return;
-    if (type === 'legend') cfg.style.legend.position = newPos;
-    if (type === 'title')  cfg.style.title.position  = newPos;
-    render();
+    if (type === 'title') {
+      const ov = document.getElementById('overlay-canvas');
+      const { x, y } = computeSnap(pos.x, pos.y, ov.width, ov.height);
+      cfg.style.title.x = Math.round(x);
+      cfg.style.title.y = Math.round(y);
+      dragTitleHidden = false;
+      // Redraw chart with title at new position (no full destroy/recreate needed)
+      chartInstance.options.layout.padding.top =
+        (cfg.title && cfg.style.title.x == null) ? cfg.style.title.fontSize + 14 : 0;
+      chartInstance.update('none');
+    } else if (type === 'legend') {
+      // Legend stays snap-to-position
+      const ov = document.getElementById('overlay-canvas');
+      const W = ov.width, H = ov.height;
+      const dT = pos.y, dB = H-pos.y, dL = pos.x, dR = W-pos.x;
+      const m  = Math.min(dT, dB, dL, dR);
+      cfg.style.legend.position = m===dT?'top': m===dB?'bottom': m===dL?'left':'right';
+      render();
+    }
     setTimeout(() => { selectZone({ type }, null); }, 20);
   }
 
@@ -1546,12 +1597,10 @@
             <option value="600"${s.title.fontWeight==='600'?' selected':''}>Semi-bold</option>
             <option value="700"${s.title.fontWeight==='700'?' selected':''}>Bold</option>
           </select></div>
-        <div class="insp-field"><span class="insp-label">Position</span>
-          <select class="insp-select" onchange="cfg.style.title.position=this.value;render()">
-            <option value="top"${s.title.position==='top'?' selected':''}>Top</option>
-            <option value="bottom"${s.title.position==='bottom'?' selected':''}>Bottom</option>
-          </select></div>
-        <div class="insp-hint">⠿ Drag to reposition</div>`;
+        ${s.title.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
+          onclick="cfg.style.title.x=null;cfg.style.title.y=null;render();selectZone({type:'title'},null)">
+          ↩ Reset to default position</button></div>` : ''}
+        <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
     if (zone.type === 'xlabel' || zone.type === 'ylabel') {
