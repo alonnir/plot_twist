@@ -504,6 +504,38 @@
       color: #fff; z-index: 50;
     }
 
+    /* Undo / Redo */
+    .btn-undo-redo {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border-lt); border-radius: var(--r);
+      font-size: 15px; transition: all .15s;
+    }
+    .btn-undo-redo:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text); }
+    .btn-undo-redo:disabled { opacity: .3; cursor: default; }
+
+    /* Data toolbar */
+    .data-toolbar { display: flex; gap: 6px; margin-top: 6px; }
+    .btn-data-action {
+      flex: 1; padding: 6px 8px;
+      background: var(--bg-card); color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: var(--r);
+      font-size: 11px; font-weight: 500; text-align: center;
+      transition: all .15s;
+    }
+    .btn-data-action:hover { border-color: var(--border-lt); color: var(--text); background: var(--bg-input); }
+
+    /* Uncertain cell in data table */
+    .tbl-uncertain .tbl-input { border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.07); }
+    .tbl-uncertain-flag {
+      font-size: 10px; color: #fbbf24; cursor: pointer;
+      background: none; border: none; padding: 0 0 0 2px;
+      line-height: 1; vertical-align: middle; flex-shrink: 0;
+    }
+    .tbl-uncertain-flag:hover { color: #f59e0b; }
+    .tbl-cell-inner { display: flex; align-items: center; }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -632,9 +664,13 @@
       <section class="chart-stage">
         <div class="stage-header">
           <div class="panel-heading">Preview</div>
-          <button class="btn-download" id="btn-download" onclick="downloadChart()">
-            ⬇&nbsp; Download PNG
-          </button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn-undo-redo" id="btn-undo" onclick="doUndo()" disabled title="Undo (Ctrl+Z)">↩</button>
+            <button class="btn-undo-redo" id="btn-redo" onclick="doRedo()" disabled title="Redo (Ctrl+Y)">↪</button>
+            <button class="btn-download" id="btn-download" onclick="downloadChart()">
+              ⬇&nbsp; Download PNG
+            </button>
+          </div>
         </div>
         <div class="stage-body">
           <div id="canvas-wrapper">
@@ -713,16 +749,16 @@
               <div class="edit-section-title">Labels</div>
               <div class="field-group">
                 <label class="field-label">Chart Title</label>
-                <input class="field-input" id="input-title" type="text" placeholder="e.g. Monthly Revenue" oninput="cfg.title=this.value;render()" />
+                <input class="field-input" id="input-title" type="text" placeholder="e.g. Monthly Revenue" onfocus="pushUndo()" oninput="cfg.title=this.value;render()" />
               </div>
               <div id="axis-label-fields">
                 <div class="field-group">
                   <label class="field-label">X-Axis Label</label>
-                  <input class="field-input" id="input-xlabel" type="text" placeholder="e.g. Month" oninput="cfg.xAxisLabel=this.value;render()" />
+                  <input class="field-input" id="input-xlabel" type="text" placeholder="e.g. Month" onfocus="pushUndo()" oninput="cfg.xAxisLabel=this.value;render()" />
                 </div>
                 <div class="field-group">
                   <label class="field-label">Y-Axis Label</label>
-                  <input class="field-input" id="input-ylabel" type="text" placeholder="e.g. Revenue (£)" oninput="cfg.yAxisLabel=this.value;render()" />
+                  <input class="field-input" id="input-ylabel" type="text" placeholder="e.g. Revenue (£)" onfocus="pushUndo()" oninput="cfg.yAxisLabel=this.value;render()" />
                 </div>
               </div>
             </div>
@@ -740,13 +776,20 @@
             <div class="edit-section">
               <div class="edit-section-hdr">
                 <div class="edit-section-title">Data Points</div>
-                <button class="btn-sm" onclick="addDataRow()">+ Row</button>
+                <div style="display:flex;gap:5px">
+                  <button class="btn-sm" onclick="addDataRow()">+ Row</button>
+                  <button class="btn-sm" onclick="pushUndo();addSeries()" title="Add a new series column">+ Col</button>
+                </div>
               </div>
               <div class="data-table-wrap">
                 <table class="data-table" id="data-table">
                   <thead><tr id="table-head"></tr></thead>
                   <tbody id="table-body"></tbody>
                 </table>
+              </div>
+              <div class="data-toolbar">
+                <button class="btn-data-action" onclick="downloadDataCSV()" title="Download data as CSV">⬇ CSV</button>
+                <button class="btn-data-action" id="btn-copy-data" onclick="copyDataToClipboard()" title="Copy as tab-separated (paste into Excel / Sheets)">📋 Copy</button>
               </div>
             </div>
           </div>
@@ -759,15 +802,15 @@
               <div class="edit-section-title">Display Options</div>
               <label class="toggle-row">
                 <span>Show Legend</span>
-                <input type="checkbox" class="toggle-cb" id="tog-legend" checked onchange="cfg.options.showLegend=this.checked;render()" />
+                <input type="checkbox" class="toggle-cb" id="tog-legend" checked onchange="pushUndo();cfg.options.showLegend=this.checked;render()" />
               </label>
               <label class="toggle-row" id="tog-grid-row">
                 <span>Show Grid Lines</span>
-                <input type="checkbox" class="toggle-cb" id="tog-grid" checked onchange="cfg.options.showGrid=this.checked;render()" />
+                <input type="checkbox" class="toggle-cb" id="tog-grid" checked onchange="pushUndo();cfg.options.showGrid=this.checked;render()" />
               </label>
               <label class="toggle-row" id="tog-hbar-row">
                 <span>Horizontal Bars</span>
-                <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="cfg.horizontal=this.checked;render()" />
+                <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="pushUndo();cfg.horizontal=this.checked;render()" />
               </label>
             </div>
           </div>
@@ -805,6 +848,9 @@
   let chartInstance = null;
   let cfg = defaultCfg();        // mutable chart config
   let activeTab = 'style';
+  let undoStack = [];
+  let redoStack = [];
+  const MAX_UNDO = 50;
 
   function defaultCfg() {
     return {
@@ -816,6 +862,7 @@
         data:  [65, 59, 80, 81, 56, 72],
         color: '#6366f1',
         colors: Array(6).fill('#6366f1'),
+        uncertain: Array(6).fill(false),
       }],
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
       style: {
@@ -990,6 +1037,7 @@
      APPLY PARSED DATA
   ───────────────────────────────────────────── */
   function applyParsed(parsed) {
+    const nLabels = (parsed.labels || []).length;
     cfg = {
       type:       parsed.chartType || 'bar',
       horizontal: false,
@@ -999,18 +1047,22 @@
       labels:     parsed.labels || [],
       datasets:   (parsed.datasets || []).map((ds, i) => {
         const fallback = PALETTE[i % PALETTE.length];
-        // color = primary single color; colors = per-slice for arc charts
-        const rawColors = Array.isArray(ds.backgroundColor) ? ds.backgroundColor : Array(parsed.labels.length).fill(ds.backgroundColor || fallback);
+        const rawColors = Array.isArray(ds.backgroundColor) ? ds.backgroundColor : Array(nLabels).fill(ds.backgroundColor || fallback);
         return {
-          label:  ds.label || `Series ${i+1}`,
-          data:   ds.data  || [],
-          color:  rawColors[0] || fallback,
-          colors: rawColors,
+          label:    ds.label || `Series ${i+1}`,
+          data:     ds.data  || [],
+          color:    rawColors[0] || fallback,
+          colors:   rawColors,
+          uncertain: Array(nLabels).fill(false).map((_, idx) =>
+            !!(ds.uncertainIndices || []).includes(idx)),
         };
       }),
       options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
       style: defaultCfg().style,
     };
+    // Fresh chart — clear undo history
+    undoStack = []; redoStack = [];
+    updateUndoButtons();
     closeInspector();
     render();
     refreshEditUI();
@@ -1485,27 +1537,83 @@
 
   const SNAP_DIST = 8; // px — how close before snapping to a guide
 
-  // ── Compute snap guides for a dragged element centred at (px,py) ──
-  // Returns { x, y } (snapped position) and activeGuides [{axis,value}]
-  function computeSnap(px, py, W, H) {
+  // ── Measure half-width/half-height of an element for edge-snapping maths ──
+  function getElementHalfExtent(type) {
+    const s = cfg.style;
+    const pad = 8;
+    if (type === 'title') {
+      const fStr = `${s.title.fontWeight||'700'} ${s.title.fontSize||18}px ${s.title.fontFamily||'sans-serif'}`;
+      const tw = measureTxt(cfg.title || '', fStr);
+      return { hw: tw/2 + pad, hh: (s.title.fontSize||18)/2 + pad };
+    }
+    if (type === 'legend') {
+      const fs = s.legend.fontSize||13, sw=fs-2, gap=5, iGap=14;
+      const fStr = `${fs}px ${s.legend.fontFamily||'Inter,sans-serif'}`;
+      const datasets = chartInstance?.data?.datasets || cfg.datasets;
+      const totalW = datasets.reduce((acc,ds)=>acc+sw+gap+measureTxt(ds.label||'',fStr)+iGap, 0) - iGap;
+      return { hw: Math.max(totalW/2, 10) + pad, hh: fs/2 + pad };
+    }
+    if (type === 'xlabel') {
+      const fs = s.xlabel.fontSize||13;
+      const fStr = `${fs}px ${s.xlabel.fontFamily||'Inter,sans-serif'}`;
+      const tw = measureTxt(cfg.xAxisLabel || '', fStr);
+      return { hw: tw/2 + pad, hh: fs/2 + pad };
+    }
+    if (type === 'ylabel') {
+      const fs = s.ylabel.fontSize||13;
+      const fStr = `${fs}px ${s.ylabel.fontFamily||'Inter,sans-serif'}`;
+      const tw = measureTxt(cfg.yAxisLabel || '', fStr);
+      return { hw: fs/2 + pad, hh: tw/2 + pad }; // rotated — swap width/height
+    }
+    return { hw: 20, hh: 10 };
+  }
+
+  // ── Compute snap for a dragged element centred at (px,py) ──
+  // Returns { x, y } (snapped center position) and guides [{axis, lineAt}]
+  function computeSnap(px, py, W, H, dragType) {
     const ca = chartInstance?.chartArea;
     let sx = px, sy = py;
     const guides = [];
+    const ext = dragType ? getElementHalfExtent(dragType) : { hw: 0, hh: 0 };
 
-    const snapX = [
-      W / 2,                          // canvas centre X
-      ca ? (ca.left + ca.right) / 2 : null,  // chart-area centre X
-    ].filter(v => v != null);
-    const snapY = [
-      H / 2,                          // canvas centre Y
-      ca ? ca.top : null,             // chart-area top edge
-    ].filter(v => v != null);
+    // Candidate: { centerSnap, lineAt }  — center of dragged snaps to centerSnap, line drawn at lineAt
+    const xCands = [
+      { centerSnap: W/2,                                       lineAt: W/2 },
+      ca ? { centerSnap: (ca.left+ca.right)/2,                 lineAt: (ca.left+ca.right)/2 } : null,
+    ].filter(Boolean);
+    const yCands = [
+      { centerSnap: H/2,    lineAt: H/2 },
+      ca ? { centerSnap: ca.top, lineAt: ca.top } : null,
+    ].filter(Boolean);
 
-    for (const gx of snapX) {
-      if (Math.abs(px - gx) < SNAP_DIST) { sx = gx; guides.push({ axis: 'x', value: gx }); break; }
+    // Add element-to-element candidates
+    if (dragType) {
+      const others = ['title','legend','xlabel','ylabel'].filter(t => t !== dragType);
+      for (const t of others) {
+        const b = getZoneBounds({ type: t });
+        if (!b) continue;
+        const oL = b[0], oR = b[2], oCX = (b[0]+b[2])/2;
+        const oT = b[1], oB = b[3], oCY = (b[1]+b[3])/2;
+        // X: left-left, center-center, right-right
+        xCands.push({ centerSnap: oL + ext.hw,  lineAt: oL   });  // drag-left ↔ other-left
+        xCands.push({ centerSnap: oCX,           lineAt: oCX  });  // centers
+        xCands.push({ centerSnap: oR - ext.hw,  lineAt: oR   });  // drag-right ↔ other-right
+        // Y: top-top, center-center, bottom-bottom
+        yCands.push({ centerSnap: oT + ext.hh,  lineAt: oT   });
+        yCands.push({ centerSnap: oCY,           lineAt: oCY  });
+        yCands.push({ centerSnap: oB - ext.hh,  lineAt: oB   });
+      }
     }
-    for (const gy of snapY) {
-      if (Math.abs(py - gy) < SNAP_DIST) { sy = gy; guides.push({ axis: 'y', value: gy }); break; }
+
+    for (const c of xCands) {
+      if (Math.abs(px - c.centerSnap) < SNAP_DIST) {
+        sx = c.centerSnap; guides.push({ axis:'x', lineAt: c.lineAt }); break;
+      }
+    }
+    for (const c of yCands) {
+      if (Math.abs(py - c.centerSnap) < SNAP_DIST) {
+        sy = c.centerSnap; guides.push({ axis:'y', lineAt: c.lineAt }); break;
+      }
     }
     return { x: sx, y: sy, guides };
   }
@@ -1514,15 +1622,15 @@
 
   // ── Draw snap guides + element preview at snapped position ──
   function drawDragPreview(ctx, W, H, type, pos) {
-    const { x, y, guides } = computeSnap(pos.x, pos.y, W, H);
+    const { x, y, guides } = computeSnap(pos.x, pos.y, W, H, type);
     ctx.save();
     // Red snap guide lines
     ctx.strokeStyle = 'rgba(239,68,68,0.75)';
     ctx.lineWidth = 1; ctx.setLineDash([4,3]);
     guides.forEach(g => {
       ctx.beginPath();
-      if (g.axis==='x') { ctx.moveTo(g.value,0); ctx.lineTo(g.value,H); }
-      else              { ctx.moveTo(0,g.value); ctx.lineTo(W,g.value); }
+      if (g.axis==='x') { ctx.moveTo(g.lineAt,0); ctx.lineTo(g.lineAt,H); }
+      else              { ctx.moveTo(0,g.lineAt); ctx.lineTo(W,g.lineAt); }
       ctx.stroke();
     });
     ctx.setLineDash([]);
@@ -1615,6 +1723,7 @@
     if (!z) { selectZone(null); return; }
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
     if (DRAGGABLE_TYPES.includes(z.type)) {
+      pushUndo(); // save state before drag
       dragZone = z; dragStartPos = p; dragCurrentPos = p;
       document.addEventListener('mousemove', onDocDragMove);
       document.addEventListener('mouseup',   onDocDragUp);
@@ -1629,7 +1738,7 @@
 
   function finishDrag(type, pos) {
     const ov = document.getElementById('overlay-canvas');
-    const { x, y } = computeSnap(pos.x, pos.y, ov.width, ov.height);
+    const { x, y } = computeSnap(pos.x, pos.y, ov.width, ov.height, type);
     const rx = Math.round(x), ry = Math.round(y);
 
     if (type === 'title') {
@@ -1698,28 +1807,30 @@
     if (zone.type === 'title') {
       return `
         <div class="insp-field"><span class="insp-label">Text</span>
-          <input class="insp-input" value="${escHtml(cfg.title)}" oninput="cfg.title=this.value;render()" /></div>
+          <input class="insp-input" value="${escHtml(cfg.title)}" onfocus="pushUndo()" oninput="cfg.title=this.value;render()" /></div>
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="64" value="${s.title.fontSize}"
-              oninput="cfg.style.title.fontSize=+this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.title.fontSize=+this.value;render()" /></div>
           <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${s.title.color}"
-              oninput="cfg.style.title.color=this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.title.color=this.value;render()" /></div>
         </div>
         <div class="insp-field"><span class="insp-label">Font</span>
-          <select class="insp-select" onchange="cfg.style.title.fontFamily=this.value;render()">${
+          <select class="insp-select" onchange="pushUndo();cfg.style.title.fontFamily=this.value;render()">${
             FONTS.map(f=>`<option value="${f.value}"${s.title.fontFamily===f.value?' selected':''}>${f.label}</option>`).join('')
           }</select></div>
         <div class="insp-field"><span class="insp-label">Weight</span>
-          <select class="insp-select" onchange="cfg.style.title.fontWeight=this.value;render()">
+          <select class="insp-select" onchange="pushUndo();cfg.style.title.fontWeight=this.value;render()">
             <option value="400"${s.title.fontWeight==='400'?' selected':''}>Regular</option>
             <option value="600"${s.title.fontWeight==='600'?' selected':''}>Semi-bold</option>
             <option value="700"${s.title.fontWeight==='700'?' selected':''}>Bold</option>
           </select></div>
         ${s.title.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
-          onclick="cfg.style.title.x=null;cfg.style.title.y=null;render();selectZone({type:'title'},null)">
-          ↩ Reset to default position</button></div>` : ''}
+          onclick="pushUndo();cfg.style.title.x=null;cfg.style.title.y=null;render();selectZone({type:'title'},null)">
+          ↩ Reset position</button></div>` : ''}
+        <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
+          onclick="resetElementStyle('title')">↺ Reset style to defaults</button></div>
         <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
@@ -1729,18 +1840,20 @@
       return `
         <div class="insp-field"><span class="insp-label">Text</span>
           <input class="insp-input" value="${escHtml(val)}"
-            oninput="${key==='xlabel'?'cfg.xAxisLabel':'cfg.yAxisLabel'}=this.value;render()" /></div>
+            onfocus="pushUndo()" oninput="${key==='xlabel'?'cfg.xAxisLabel':'cfg.yAxisLabel'}=this.value;render()" /></div>
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="40" value="${st.fontSize}"
-              oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
           <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${st.color}"
-              oninput="cfg.style.${key}.color=this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.${key}.color=this.value;render()" /></div>
         </div>
         ${st.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
-          onclick="cfg.style.${key}.x=null;cfg.style.${key}.y=null;render();selectZone({type:'${key}'},null)">
-          ↩ Reset to default position</button></div>` : ''}
+          onclick="pushUndo();cfg.style.${key}.x=null;cfg.style.${key}.y=null;render();selectZone({type:'${key}'},null)">
+          ↩ Reset position</button></div>` : ''}
+        <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
+          onclick="resetElementStyle('${key}')">↺ Reset style to defaults</button></div>
         <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
@@ -1750,17 +1863,19 @@
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="6" max="32" value="${st.fontSize}"
-              oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
           <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${st.color}"
-              oninput="cfg.style.${key}.color=this.value;render()" /></div>
-        </div>`;
+              onfocus="pushUndo()" oninput="cfg.style.${key}.color=this.value;render()" /></div>
+        </div>
+        <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
+          onclick="resetElementStyle('${key}')">↺ Reset style to defaults</button></div>`;
     }
 
     if (zone.type === 'legend') {
       return `
         ${s.legend.x == null ? `<div class="insp-field"><span class="insp-label">Position</span>
-          <select class="insp-select" onchange="cfg.style.legend.position=this.value;render()">
+          <select class="insp-select" onchange="pushUndo();cfg.style.legend.position=this.value;render()">
             ${['top','bottom','left','right'].map(p=>
               `<option value="${p}"${s.legend.position===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
             ).join('')}
@@ -1768,14 +1883,16 @@
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="32" value="${s.legend.fontSize}"
-              oninput="cfg.style.legend.fontSize=+this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.legend.fontSize=+this.value;render()" /></div>
           <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${s.legend.color}"
-              oninput="cfg.style.legend.color=this.value;render()" /></div>
+              onfocus="pushUndo()" oninput="cfg.style.legend.color=this.value;render()" /></div>
         </div>
         ${s.legend.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
-          onclick="cfg.style.legend.x=null;cfg.style.legend.y=null;render();selectZone({type:'legend'},null)">
-          ↩ Reset to default position</button></div>` : ''}
+          onclick="pushUndo();cfg.style.legend.x=null;cfg.style.legend.y=null;render();selectZone({type:'legend'},null)">
+          ↩ Reset position</button></div>` : ''}
+        <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
+          onclick="resetElementStyle('legend')">↺ Reset style to defaults</button></div>
         <div class="insp-hint">⠿ Drag freely to reposition</div>`;
     }
 
@@ -1795,7 +1912,7 @@
       return `
         <div class="insp-field"><span class="insp-label">Series</span>
           <input class="insp-input" value="${escHtml(ds.label)}"
-            oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" /></div>
+            onfocus="pushUndo()" oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" /></div>
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Color</span>
             <input type="color" class="insp-color" value="${ds.color||PALETTE[zone.datasetIndex%PALETTE.length]}"
@@ -1864,6 +1981,7 @@
      EDIT PANEL — STYLE
   ───────────────────────────────────────────── */
   function setChartType(type) {
+    pushUndo();
     cfg.type = type;
     document.querySelectorAll('.type-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
@@ -1909,6 +2027,7 @@
   }
 
   function setSeriesColor(idx, val) {
+    pushUndo();
     cfg.datasets[idx].color  = val;
     cfg.datasets[idx].colors = Array(cfg.labels.length).fill(val);
     document.getElementById('series-dot-' + idx).style.background = val;
@@ -1917,6 +2036,7 @@
 
   function setSliceColor(idx, val) {
     if (!cfg.datasets[0]) return;
+    pushUndo();
     if (!cfg.datasets[0].colors) cfg.datasets[0].colors = [];
     cfg.datasets[0].colors[idx] = val;
     cfg.datasets[0].color = cfg.datasets[0].colors[0];
@@ -1925,6 +2045,7 @@
   }
 
   function setCanvasBg(val) {
+    pushUndo();
     cfg.options.canvasBg = val;
     document.getElementById('canvas-bg-dot').style.background = val;
     document.getElementById('canvas-wrapper').style.background = val;
@@ -1939,6 +2060,7 @@
       `<div class="series-row">
         <input class="field-input" type="text" value="${escHtml(ds.label)}"
           placeholder="Series name"
+          onfocus="pushUndo()"
           oninput="cfg.datasets[${i}].label=this.value; buildColourSection(); buildDataTable(); render()" />
         ${cfg.datasets.length > 1
           ? `<button class="btn-del" onclick="removeSeries(${i})" title="Remove series">×</button>`
@@ -1961,11 +2083,19 @@
     body.innerHTML = cfg.labels.map((lbl, li) =>
       `<tr>
         <td><input class="tbl-input" value="${escHtml(lbl)}"
+          onfocus="pushUndo()"
           oninput="cfg.labels[${li}]=this.value; buildColourSection(); render()" /></td>
-        ${cfg.datasets.map((ds, di) =>
-          `<td><input class="tbl-input num" type="number" value="${ds.data[li] ?? ''}"
-            oninput="cfg.datasets[${di}].data[${li}]=this.value===''?null:Number(this.value); render()" /></td>`
-        ).join('')}
+        ${cfg.datasets.map((ds, di) => {
+          const unc = ds.uncertain && ds.uncertain[li];
+          return `<td class="${unc ? 'tbl-uncertain' : ''}">
+            <div class="tbl-cell-inner">
+              <input class="tbl-input num" type="number" value="${ds.data[li] ?? ''}"
+                onfocus="pushUndo()"
+                oninput="cfg.datasets[${di}].data[${li}]=this.value===''?null:Number(this.value); render()" />
+              ${unc ? `<button class="tbl-uncertain-flag" title="AI was uncertain about this value — click to mark as confirmed" onclick="if(!cfg.datasets[${di}].uncertain)cfg.datasets[${di}].uncertain=[];cfg.datasets[${di}].uncertain[${li}]=false;buildDataTable()">⚠</button>` : ''}
+            </div>
+          </td>`;
+        }).join('')}
         <td><button class="btn-del" onclick="removeDataRow(${li})"
           ${cfg.labels.length <= 1 ? 'disabled' : ''} title="Remove row">×</button></td>
       </tr>`
@@ -1973,32 +2103,45 @@
   }
 
   function addSeries() {
+    pushUndo();
     const c = PALETTE[cfg.datasets.length % PALETTE.length];
     cfg.datasets.push({
-      label:  `Series ${cfg.datasets.length + 1}`,
-      data:   Array(cfg.labels.length).fill(0),
-      color:  c,
-      colors: Array(cfg.labels.length).fill(c),
+      label:    `Series ${cfg.datasets.length + 1}`,
+      data:     Array(cfg.labels.length).fill(0),
+      color:    c,
+      colors:   Array(cfg.labels.length).fill(c),
+      uncertain: Array(cfg.labels.length).fill(false),
     });
     buildColourSection(); buildSeriesInputs(); buildDataTable(); render();
   }
 
   function removeSeries(idx) {
     if (cfg.datasets.length <= 1) return;
+    pushUndo();
     cfg.datasets.splice(idx, 1);
     buildColourSection(); buildSeriesInputs(); buildDataTable(); render();
   }
 
   function addDataRow() {
+    pushUndo();
     cfg.labels.push(`Label ${cfg.labels.length + 1}`);
-    cfg.datasets.forEach(ds => { ds.data.push(0); ds.colors.push(ds.color || PALETTE[0]); });
+    cfg.datasets.forEach(ds => {
+      ds.data.push(0);
+      ds.colors.push(ds.color || PALETTE[0]);
+      if (ds.uncertain) ds.uncertain.push(false);
+    });
     buildColourSection(); buildDataTable(); render();
   }
 
   function removeDataRow(idx) {
     if (cfg.labels.length <= 1) return;
+    pushUndo();
     cfg.labels.splice(idx, 1);
-    cfg.datasets.forEach(ds => { ds.data.splice(idx, 1); ds.colors.splice(idx, 1); });
+    cfg.datasets.forEach(ds => {
+      ds.data.splice(idx, 1);
+      ds.colors.splice(idx, 1);
+      if (ds.uncertain) ds.uncertain.splice(idx, 1);
+    });
     buildColourSection(); buildDataTable(); render();
   }
 
@@ -2039,10 +2182,96 @@
 
   function resetToDemo() {
     cfg = defaultCfg();
+    undoStack = []; redoStack = [];
+    updateUndoButtons();
     setDzState('empty');
     setUploadMsg('', '');
     render();
     refreshEditUI();
+  }
+
+  /* ─────────────────────────────────────────────
+     UNDO / REDO
+  ───────────────────────────────────────────── */
+  function pushUndo() {
+    undoStack.push(JSON.stringify(cfg));
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack = [];
+    updateUndoButtons();
+  }
+
+  function doUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(JSON.stringify(cfg));
+    cfg = JSON.parse(undoStack.pop());
+    closeInspector();
+    render(); refreshEditUI();
+    updateUndoButtons();
+  }
+
+  function doRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(cfg));
+    cfg = JSON.parse(redoStack.pop());
+    closeInspector();
+    render(); refreshEditUI();
+    updateUndoButtons();
+  }
+
+  function updateUndoButtons() {
+    const u = document.getElementById('btn-undo');
+    const r = document.getElementById('btn-redo');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+  }
+
+  /* ─────────────────────────────────────────────
+     RESET ELEMENT STYLE
+  ───────────────────────────────────────────── */
+  function resetElementStyle(type) {
+    pushUndo();
+    const def = defaultCfg().style[type];
+    if (!def) return;
+    const cur = cfg.style[type];
+    // Preserve free-drag position but reset all other style props
+    cfg.style[type] = { ...def, x: cur.x ?? null, y: cur.y ?? null };
+    render();
+    setTimeout(() => selectZone({ type }, null), 20);
+  }
+
+  /* ─────────────────────────────────────────────
+     DATA EXPORT
+  ───────────────────────────────────────────── */
+  function downloadDataCSV() {
+    const esc = v => (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n')))
+      ? '"' + v.replace(/"/g, '""') + '"' : String(v ?? '');
+    const header = [esc('Label'), ...cfg.datasets.map(ds => esc(ds.label))].join(',');
+    const rows = cfg.labels.map((lbl, li) =>
+      [esc(lbl), ...cfg.datasets.map(ds => esc(ds.data[li] ?? ''))].join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.download = (cfg.title || 'chart-data') + '.csv';
+    a.href     = url; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
+  function copyDataToClipboard() {
+    const header = ['Label', ...cfg.datasets.map(ds => ds.label)].join('\t');
+    const rows = cfg.labels.map((lbl, li) =>
+      [lbl, ...cfg.datasets.map(ds => ds.data[li] ?? '')].join('\t')
+    );
+    const tsv = [header, ...rows].join('\n');
+    navigator.clipboard.writeText(tsv).then(() => {
+      const btn = document.getElementById('btn-copy-data');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1800);
+      }
+    });
   }
 
   /* ─────────────────────────────────────────────
@@ -2064,6 +2293,16 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+
+  /* ─────────────────────────────────────────────
+     KEYBOARD SHORTCUTS (Undo/Redo)
+  ───────────────────────────────────────────── */
+  document.addEventListener('keydown', (e) => {
+    const inInput = ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName);
+    if (inInput) return; // let browser handle text-field undo natively
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
+  });
 
   /* ─────────────────────────────────────────────
      OFFLINE BANNER
@@ -2121,7 +2360,8 @@ Return ONLY a valid JSON object — no markdown, no explanation, no code fences.
     {
       "label": "Series name",
       "data": [10, 20, 30],
-      "backgroundColor": ["#4285f4", "#4285f4", "#4285f4"]
+      "backgroundColor": ["#4285f4", "#4285f4", "#4285f4"],
+      "uncertainIndices": [1]
     }
   ]
 }
@@ -2135,7 +2375,8 @@ Rules:
 - Estimate proportionally from bar/line heights when exact numbers are not shown
 - Extract hex colours from the chart when visible; otherwise choose sensible defaults
 - Include ALL series shown in a legend as separate dataset entries
-- Return null (not empty string) for title/xAxisLabel/yAxisLabel when not present`;
+- Return null (not empty string) for title/xAxisLabel/yAxisLabel when not present
+- uncertainIndices: array of 0-based indices where you were unsure about the value (ambiguous, hard to read, or estimated with low confidence). Use [] when all values are confident`;
 
     window.parseChartWithAI = async function(base64Data, mimeType) {
       const result = await model.generateContent([
