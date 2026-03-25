@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "plot-twist-d43c1",
+    "site": "plot-twist",
     "public": ".",
     "ignore": [
       "firebase.json",
