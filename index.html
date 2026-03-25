@@ -1135,6 +1135,8 @@
   let isDragging    = false;
   let dragZone      = null;
   let dragCurrentPos = null;
+  let dragStartPos   = null;
+  const DRAG_THRESHOLD = 5; // px movement before drag activates
 
   // ── Sync overlay canvas to sit exactly over the chart canvas ──
   function syncOverlay() {
@@ -1214,7 +1216,17 @@
     switch (zone.type) {
       case 'title': {
         const tb = chartInstance.titleBlock;
-        return tb ? [tb.left, tb.top, tb.right, tb.bottom] : null;
+        if (!tb) return null;
+        // Measure actual rendered text width so the hit zone hugs the text
+        const s = cfg.style?.title || {};
+        const fStr = `${s.fontWeight||'700'} ${s.fontSize||18}px ${s.fontFamily||'sans-serif'}`;
+        const tmpCtx = document.getElementById('chart-canvas').getContext('2d');
+        tmpCtx.save(); tmpCtx.font = fStr;
+        const tw = tmpCtx.measureText(cfg.title || '').width;
+        tmpCtx.restore();
+        const midX = (tb.left + tb.right) / 2;
+        const pad = 10;
+        return [midX - tw/2 - pad, tb.top, midX + tw/2 + pad, tb.bottom];
       }
       case 'legend': {
         const l = chartInstance.legend;
@@ -1368,16 +1380,26 @@
   // ── Event handlers ──
   function onOvMove(e) {
     const p = cssCoords(e);
+    const ov = document.getElementById('overlay-canvas');
+
+    // If a potential drag is primed, check if we've moved enough to activate it
+    if (!isDragging && dragZone && dragStartPos) {
+      const dist = Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y);
+      if (dist > DRAG_THRESHOLD) {
+        isDragging = true;
+      }
+    }
+
     if (isDragging) {
       dragCurrentPos = p;
       drawOverlay();
-      document.getElementById('overlay-canvas').style.cursor = 'grabbing';
+      ov.style.cursor = 'grabbing';
       return;
     }
+
     const z = getHitZone(p.x, p.y);
     if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
-    const ov = document.getElementById('overlay-canvas');
-    ov.style.cursor = z ? (zonesEqual(z, selectedZone) && ['legend','title'].includes(z?.type) ? 'grab' : 'pointer') : 'default';
+    ov.style.cursor = z ? (['legend','title'].includes(z?.type) ? 'grab' : 'pointer') : 'default';
   }
 
   function onOvDown(e) {
@@ -1385,15 +1407,15 @@
     const z = getHitZone(p.x, p.y);
     if (!z) { selectZone(null); return; }
 
-    if (zonesEqual(z, selectedZone) && ['legend','title'].includes(z.type)) {
-      // Start drag
-      isDragging = true;
-      dragZone   = z;
+    // Always select on mousedown
+    if (!zonesEqual(z, selectedZone)) selectZone(z, p);
+
+    // Prime drag for draggable zones — activates once mouse moves > threshold
+    if (['legend','title'].includes(z.type)) {
+      dragZone     = z;
+      dragStartPos = p;
       dragCurrentPos = p;
-      document.getElementById('overlay-canvas').style.cursor = 'grabbing';
-      drawOverlay();
-    } else {
-      selectZone(z, p);
+      document.getElementById('overlay-canvas').style.cursor = 'grab';
     }
   }
 
@@ -1401,13 +1423,14 @@
     if (isDragging && dragZone && dragCurrentPos) {
       finishDrag(dragZone.type, dragCurrentPos);
     }
-    isDragging = false; dragZone = null; dragCurrentPos = null;
+    isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
     drawOverlay();
     document.getElementById('overlay-canvas').style.cursor = 'default';
   }
 
   function onOvLeave() {
     if (isDragging) { onOvUp({}); }
+    isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
     hoverZone = null;
     document.getElementById('overlay-canvas').style.cursor = 'default';
     drawOverlay();
