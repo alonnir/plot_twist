@@ -1403,10 +1403,13 @@
     const ov = document.getElementById('overlay-canvas');
     const r  = ov.getBoundingClientRect();
     const p  = { x: e.clientX - r.left, y: e.clientY - r.top };
+    console.log('[PT] docMove isDragging=', isDragging, 'dragStartPos=', dragStartPos, 'p=', p);
 
     if (!isDragging && dragStartPos) {
-      if (Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y) > DRAG_THRESHOLD)
+      if (Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y) > DRAG_THRESHOLD) {
+        console.log('[PT] drag threshold crossed → isDragging=true');
         isDragging = true;
+      }
     }
     if (isDragging) {
       dragCurrentPos = p;
@@ -1416,6 +1419,7 @@
   }
 
   function onDocDragUp(e) {
+    console.log('[PT] docUp isDragging=', isDragging, 'dragZone=', dragZone, 'pos=', dragCurrentPos);
     document.removeEventListener('mousemove', onDocDragMove);
     document.removeEventListener('mouseup',   onDocDragUp);
     document.body.style.cursor = '';
@@ -1442,6 +1446,7 @@
     e.preventDefault(); // prevent browser native drag and text selection
     const p = cssCoords(e);
     const z = getHitZone(p.x, p.y);
+    console.log('[PT] onOvDown zone=', z, 'p=', p);
     if (!z) { selectZone(null); return; }
 
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
@@ -1450,6 +1455,7 @@
       dragZone     = z;
       dragStartPos = p;
       dragCurrentPos = p;
+      console.log('[PT] drag primed for', z.type, '— attaching doc listeners');
       // Attach document-level listeners so drag survives leaving the canvas
       document.addEventListener('mousemove', onDocDragMove);
       document.addEventListener('mouseup',   onDocDragUp);
