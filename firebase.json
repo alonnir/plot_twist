@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "plot-twist-d43c1",
     "public": ".",
     "ignore": [
       "firebase.json",
@@ -19,6 +20,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
           }
         ]
       },
