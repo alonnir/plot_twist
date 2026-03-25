@@ -784,7 +784,10 @@
       grantAccess(user);
     } else {
       currentUser = null;
-      show('login-screen');
+      // Don't bounce to login if app screen is already visible (indicates successful auth in progress)
+      if (document.getElementById('app-screen').style.display !== 'flex') {
+        show('login-screen');
+      }
     }
     hide('loading-screen');
   }
