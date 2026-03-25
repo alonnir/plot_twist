@@ -1158,8 +1158,8 @@
     const ov = document.getElementById('overlay-canvas');
     ov.onmousemove  = onOvMove;
     ov.onmousedown  = onOvDown;
-    ov.onmouseup    = onOvUp;
     ov.onmouseleave = onOvLeave;
+    // mouseup is handled by document-level listener attached on drag start
   }
 
   // ── Convert client coords to canvas-relative CSS px ──
@@ -1378,26 +1378,42 @@
   }
 
   // ── Event handlers ──
-  function onOvMove(e) {
-    const p = cssCoords(e);
+  // Document-level handlers keep drag alive even when mouse leaves the canvas
+  function onDocDragMove(e) {
     const ov = document.getElementById('overlay-canvas');
+    const r  = ov.getBoundingClientRect();
+    const p  = { x: e.clientX - r.left, y: e.clientY - r.top };
 
-    // If a potential drag is primed, check if we've moved enough to activate it
-    if (!isDragging && dragZone && dragStartPos) {
-      const dist = Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y);
-      if (dist > DRAG_THRESHOLD) {
+    if (!isDragging && dragStartPos) {
+      if (Math.hypot(p.x - dragStartPos.x, p.y - dragStartPos.y) > DRAG_THRESHOLD)
         isDragging = true;
-      }
     }
-
     if (isDragging) {
       dragCurrentPos = p;
       drawOverlay();
-      ov.style.cursor = 'grabbing';
-      return;
+      ov.style.cursor = document.body.style.cursor = 'grabbing';
     }
+  }
 
-    const z = getHitZone(p.x, p.y);
+  function onDocDragUp(e) {
+    document.removeEventListener('mousemove', onDocDragMove);
+    document.removeEventListener('mouseup',   onDocDragUp);
+    document.body.style.cursor = '';
+    const ov = document.getElementById('overlay-canvas');
+
+    if (isDragging && dragZone && dragCurrentPos) {
+      finishDrag(dragZone.type, dragCurrentPos);
+    }
+    isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
+    drawOverlay();
+    ov.style.cursor = 'default';
+  }
+
+  function onOvMove(e) {
+    if (isDragging) return; // handled by document listener
+    const p  = cssCoords(e);
+    const ov = document.getElementById('overlay-canvas');
+    const z  = getHitZone(p.x, p.y);
     if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
     ov.style.cursor = z ? (['legend','title'].includes(z?.type) ? 'grab' : 'pointer') : 'default';
   }
@@ -1407,33 +1423,25 @@
     const z = getHitZone(p.x, p.y);
     if (!z) { selectZone(null); return; }
 
-    // Always select on mousedown
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
 
-    // Prime drag for draggable zones — activates once mouse moves > threshold
     if (['legend','title'].includes(z.type)) {
       dragZone     = z;
       dragStartPos = p;
       dragCurrentPos = p;
+      // Attach document-level listeners so drag survives leaving the canvas
+      document.addEventListener('mousemove', onDocDragMove);
+      document.addEventListener('mouseup',   onDocDragUp);
       document.getElementById('overlay-canvas').style.cursor = 'grab';
     }
   }
 
-  function onOvUp(e) {
-    if (isDragging && dragZone && dragCurrentPos) {
-      finishDrag(dragZone.type, dragCurrentPos);
-    }
-    isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
-    drawOverlay();
-    document.getElementById('overlay-canvas').style.cursor = 'default';
-  }
-
   function onOvLeave() {
-    if (isDragging) { onOvUp({}); }
-    isDragging = false; dragZone = null; dragCurrentPos = null; dragStartPos = null;
-    hoverZone = null;
-    document.getElementById('overlay-canvas').style.cursor = 'default';
-    drawOverlay();
+    if (!isDragging) {
+      hoverZone = null;
+      drawOverlay();
+    }
+    document.getElementById('overlay-canvas').style.cursor = isDragging ? 'grabbing' : 'default';
   }
 
   function finishDrag(type, pos) {
