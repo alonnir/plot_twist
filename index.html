@@ -538,9 +538,9 @@
 
     /* ── Draggable tooltip ─────────────────────────── */
     .tooltip-float {
-      position: absolute;
+      position: fixed;    /* lives in body — outside overlay canvas z-index battle */
       pointer-events: auto;
-      z-index: 200;
+      z-index: 9999;
       background: #0f172a;
       border: 1px solid #334155;
       border-radius: 7px;
@@ -1299,7 +1299,7 @@
         e.stopPropagation();
       });
 
-      document.getElementById('canvas-wrapper').appendChild(el);
+      document.body.appendChild(el); // outside overlay canvas — no z-index conflicts
     }
     return el;
   }
@@ -1332,19 +1332,15 @@
       el.style.left = tooltipPinnedX + 'px';
       el.style.top  = tooltipPinnedY + 'px';
     } else {
-      const wrapper = document.getElementById('canvas-wrapper');
-      const chartCanvas = document.getElementById('chart-canvas');
-      const wRect = wrapper.getBoundingClientRect();
-      const cRect = chartCanvas.getBoundingClientRect();
-      const offX  = cRect.left - wRect.left;
-      const offY  = cRect.top  - wRect.top;
+      // position: fixed uses viewport coords
+      const cRect = document.getElementById('chart-canvas').getBoundingClientRect();
       const elW   = el.offsetWidth  || 150;
       const elH   = el.offsetHeight || 80;
-      let x = offX + chartX + 14;
-      let y = offY + chartY - elH / 2;
-      // Flip left if clipping right edge; clamp vertical
-      if (x + elW > wrapper.clientWidth  - 8) x = offX + chartX - elW - 14;
-      if (y + elH > wrapper.clientHeight - 8) y = wrapper.clientHeight - elH - 8;
+      let x = cRect.left + chartX + 14;
+      let y = cRect.top  + chartY - elH / 2;
+      // Flip left if clipping right edge; clamp vertical within viewport
+      if (x + elW > window.innerWidth  - 8) x = cRect.left + chartX - elW - 14;
+      if (y + elH > window.innerHeight - 8) y = window.innerHeight - elH - 8;
       if (y < 4) y = 4;
       el.style.left = x + 'px';
       el.style.top  = y + 'px';
