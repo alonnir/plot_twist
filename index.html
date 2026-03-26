@@ -1921,7 +1921,7 @@
     e.preventDefault();
     const p = cssCoords(e);
     const z = getHitZone(p.x, p.y);
-    if (!z) { selectZone(null); return; }
+    if (!z) { selectZone(null); closeTooltip(); return; }
     // Series click → show/update the draggable tooltip
     if (z.type === 'series') {
       showTooltip(p.x, p.y, z.index);
@@ -2576,16 +2576,18 @@
 
     // ── Click-outside closes tooltip and inspector ─────────────────────────
     document.addEventListener('click', e => {
-      // Close data tooltip
+      const ov = document.getElementById('overlay-canvas');
+      // Clicks on the overlay canvas are handled by onOvDown — don't double-process
+      if (e.target === ov) return;
+
+      // Close data tooltip on outside click
       const tt = document.getElementById('tooltip-float');
       if (tt && tt.style.display !== 'none' && !tt.contains(e.target)) {
         closeTooltip();
       }
       // Close inspector when clicking outside it and outside the overlay canvas
       const insp = document.getElementById('inspector');
-      const ov   = document.getElementById('overlay-canvas');
-      if (insp && insp.style.display === 'flex' &&
-          !insp.contains(e.target) && e.target !== ov) {
+      if (insp && insp.style.display === 'flex' && !insp.contains(e.target)) {
         closeInspector();
       }
     });
