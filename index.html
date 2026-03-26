@@ -555,11 +555,14 @@
       display: none;
     }
     .tooltip-float:active { cursor: grabbing; }
-    .tt-title {
-      font-weight: 600; color: #f1f5f9;
-      margin-bottom: 5px;
+    .tt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .tt-title  { font-weight: 600; color: #f1f5f9; }
+    .tt-close  {
+      background: none; border: none; color: #475569; font-size: 16px; line-height: 1;
+      cursor: pointer; padding: 0 0 0 8px; flex-shrink: 0;
     }
-    .tt-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    .tt-close:hover { color: #f1f5f9; }
+    .tt-row    { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
     .tt-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; display: inline-block; }
     .tt-label  { color: #94a3b8; }
     .tt-val    { color: #f1f5f9; font-weight: 500; margin-left: auto; padding-left: 10px; }
@@ -1269,7 +1272,9 @@
   }
 
   /* ─────────────────────────────────────────────
-     DRAGGABLE EXTERNAL TOOLTIP
+     CLICK-TO-SHOW DRAGGABLE TOOLTIP
+     UX: click a bar/point → tooltip pops up and
+     stays. Drag it anywhere. × to close.
   ───────────────────────────────────────────── */
   function getTooltipEl() {
     let el = document.getElementById('tooltip-float');
@@ -1277,78 +1282,67 @@
       el = document.createElement('div');
       el.id = 'tooltip-float';
       el.className = 'tooltip-float';
+      document.body.appendChild(el);
 
+      // Drag: mousedown anywhere on tooltip except × button
       el.addEventListener('mousedown', e => {
+        if (e.target.closest('.tt-close')) return;
         tooltipDragging = true;
         tooltipDragSX   = e.clientX;
         tooltipDragSY   = e.clientY;
-        tooltipDragOX   = tooltipPinnedX ?? parseFloat(el.style.left) ?? 0;
-        tooltipDragOY   = tooltipPinnedY ?? parseFloat(el.style.top)  ?? 0;
-        // Pin immediately so it doesn't jump on first drag
-        tooltipPinnedX  = tooltipDragOX;
-        tooltipPinnedY  = tooltipDragOY;
-        e.stopPropagation();
+        tooltipDragOX   = parseFloat(el.style.left)  || 0;
+        tooltipDragOY   = parseFloat(el.style.top)   || 0;
+        el.style.cursor = 'grabbing';
         e.preventDefault();
-      });
-
-      // Double-click → unpin and hide until next hover
-      el.addEventListener('dblclick', e => {
-        tooltipPinnedX = null;
-        tooltipPinnedY = null;
-        el.style.display = 'none';
         e.stopPropagation();
       });
-
-      document.body.appendChild(el); // outside overlay canvas — no z-index conflicts
     }
     return el;
   }
 
-  // Show tooltip at canvas-relative position (chartX, chartY) for a given data point.
-  // We drive this ourselves from onOvMove — Chart.js never sees hover events because
-  // the overlay canvas absorbs them all.
+  // Called from onOvDown when a series element is clicked.
+  // chartX/Y are overlay-canvas-relative coordinates.
   function showTooltip(chartX, chartY, dataIndex) {
     const el = getTooltipEl();
     const label = cfg.labels[dataIndex] ?? '';
 
-    let html = label ? `<div class="tt-title">${label}</div>` : '';
-    // Show all datasets' values for this label index
+    // Build rows for every dataset
+    let rows = '';
     cfg.datasets.forEach(ds => {
       const color = (ds.colors ?? [])[dataIndex] ?? ds.color ?? '#6366f1';
       const value = ds.data[dataIndex];
       if (value === undefined || value === null || value === '') return;
-      html += `<div class="tt-row">
+      rows += `<div class="tt-row">
         <span class="tt-swatch" style="background:${color}"></span>
         <span class="tt-label">${ds.label}</span>
         <span class="tt-val">${value}</span>
       </div>`;
     });
-    html += `<div class="tt-hint">drag to move &nbsp;·&nbsp; double-click to dismiss</div>`;
-    el.innerHTML = html;
+
+    el.innerHTML = `
+      <div class="tt-header">
+        ${label ? `<span class="tt-title">${label}</span>` : ''}
+        <button class="tt-close" onclick="closeTooltip()">×</button>
+      </div>
+      ${rows}
+      <div class="tt-hint">drag to move</div>`;
+    el.style.cursor  = 'grab';
     el.style.display = 'block';
 
-    if (tooltipPinnedX !== null) {
-      // Pinned — keep at stored position, just refresh content
-      el.style.left = tooltipPinnedX + 'px';
-      el.style.top  = tooltipPinnedY + 'px';
-    } else {
-      // position: fixed uses viewport coords
-      const cRect = document.getElementById('chart-canvas').getBoundingClientRect();
-      const elW   = el.offsetWidth  || 150;
-      const elH   = el.offsetHeight || 80;
-      let x = cRect.left + chartX + 14;
-      let y = cRect.top  + chartY - elH / 2;
-      // Flip left if clipping right edge; clamp vertical within viewport
-      if (x + elW > window.innerWidth  - 8) x = cRect.left + chartX - elW - 14;
-      if (y + elH > window.innerHeight - 8) y = window.innerHeight - elH - 8;
-      if (y < 4) y = 4;
-      el.style.left = x + 'px';
-      el.style.top  = y + 'px';
-    }
+    // Position near the click point (viewport coords via position:fixed)
+    const cRect = document.getElementById('chart-canvas').getBoundingClientRect();
+    const elW   = el.offsetWidth  || 160;
+    const elH   = el.offsetHeight || 90;
+    let x = cRect.left + chartX + 16;
+    let y = cRect.top  + chartY - Math.round(elH / 2);
+    if (x + elW > window.innerWidth  - 8) x = cRect.left + chartX - elW - 16;
+    if (y + elH > window.innerHeight - 8) y = window.innerHeight - elH - 8;
+    if (y < 4) y = 4;
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
   }
 
-  function hideTooltip() {
-    if (tooltipPinnedX !== null) return; // keep visible when pinned
+  function closeTooltip() {
     const el = document.getElementById('tooltip-float');
     if (el) el.style.display = 'none';
   }
@@ -1910,12 +1904,7 @@
     const z  = getHitZone(p.x, p.y);
     if (!zonesEqual(z, hoverZone)) { hoverZone = z; drawOverlay(); }
     ov.style.cursor = z ? (DRAGGABLE_TYPES.includes(z?.type) ? 'grab' : 'pointer') : 'default';
-    // Drive the draggable tooltip from here — overlay blocks Chart.js mouse events
-    if (z && z.type === 'series') {
-      showTooltip(p.x, p.y, z.index);
-    } else {
-      hideTooltip();
-    }
+    // Tooltip is click-driven (see onOvDown) — no hover logic needed here
   }
 
   function onOvDown(e) {
@@ -1923,6 +1912,11 @@
     const p = cssCoords(e);
     const z = getHitZone(p.x, p.y);
     if (!z) { selectZone(null); return; }
+    // Series click → show/update the draggable tooltip
+    if (z.type === 'series') {
+      showTooltip(p.x, p.y, z.index);
+      return;
+    }
     if (!zonesEqual(z, selectedZone)) selectZone(z, p);
     if (DRAGGABLE_TYPES.includes(z.type)) {
       pushUndo(); // save state before drag
@@ -1936,7 +1930,6 @@
   function onOvLeave() {
     if (!isDragging) { hoverZone = null; drawOverlay(); }
     document.getElementById('overlay-canvas').style.cursor = isDragging ? 'grabbing' : 'default';
-    hideTooltip();
   }
 
   function finishDrag(type, pos) {
@@ -2387,9 +2380,7 @@
     cfg = defaultCfg();
     undoStack = []; redoStack = [];
     updateUndoButtons();
-    tooltipPinnedX = null; tooltipPinnedY = null;
-    const ttEl = document.getElementById('tooltip-float');
-    if (ttEl) ttEl.style.display = 'none';
+    closeTooltip();
     setDzState('empty');
     setUploadMsg('', '');
     render();
@@ -2509,8 +2500,6 @@
     const y = tooltipDragOY + (e.clientY - tooltipDragSY);
     const el = document.getElementById('tooltip-float');
     if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
-    tooltipPinnedX = x;
-    tooltipPinnedY = y;
   });
 
   document.addEventListener('mouseup', () => {
