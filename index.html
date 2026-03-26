@@ -20,8 +20,6 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-  <!-- Data-labels plugin (show values on bars/lines) -->
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1272,6 +1270,38 @@
         ctx.fillText(cfg.yAxisLabel, 0, 0);
         ctx.restore();
       }
+
+      // ── Data labels ──────────────────────────────────────────────────────
+      if (cfg.options.showDataLabels) {
+        const isArc   = cfg.type === 'pie' || cfg.type === 'doughnut';
+        const isHoriz = cfg.type === 'bar' && cfg.horizontal;
+        ctx.save();
+        ctx.font         = `600 11px ${s.title.fontFamily || "'Space Grotesk',sans-serif"}`;
+        ctx.fillStyle    = cfg.options.dataLabelColor || '#333333';
+
+        chart.data.datasets.forEach((ds, di) => {
+          const meta = chart.getDatasetMeta(di);
+          if (meta.hidden) return;
+          meta.data.forEach((el, i) => {
+            const raw = ds.data[i];
+            if (raw === null || raw === undefined) return;
+            const lbl = typeof raw === 'object' ? String(raw.y ?? '') : String(raw);
+            if (isArc) {
+              const mid = (el.startAngle + el.endAngle) / 2;
+              const r   = (el.innerRadius + el.outerRadius) / 2;
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillText(lbl, el.x + r * Math.cos(mid), el.y + r * Math.sin(mid));
+            } else if (isHoriz) {
+              ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+              ctx.fillText(lbl, el.x + 5, el.y);
+            } else {
+              ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+              ctx.fillText(lbl, el.x, el.y - 4);
+            }
+          });
+        });
+        ctx.restore();
+      }
     },
   });
 
@@ -1429,9 +1459,6 @@
 
       // Patch options
       chartInstance.options.layout.padding.top = titlePad;
-      // Patch datalabels
-      const dl = chartInstance.options.plugins.datalabels;
-      if (dl) { dl.display = !!cfg.options.showDataLabels; dl.color = cfg.options.dataLabelColor || '#333333'; }
       const leg = chartInstance.options.plugins.legend;
       leg.display         = cfg.options.showLegend && s.legend.x == null;
       leg.position        = s.legend.position || 'top';
@@ -1496,16 +1523,6 @@
           title:          { display: false },
           customElements: {},
           tooltip: { enabled: false }, // we render our own draggable HTML tooltip
-          datalabels: {
-            display:   !!cfg.options.showDataLabels,
-            color:     cfg.options.dataLabelColor || '#333333',
-            font:      { size: 11, weight: '600' },
-            formatter: v => (v !== null && v !== undefined) ? v : '',
-            anchor:    isHorizBar ? 'end' : 'end',
-            align:     isHorizBar ? 'right' : 'top',
-            offset:    3,
-            clip:      false,
-          },
         },
         scales,
       },
