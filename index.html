@@ -20,6 +20,8 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <!-- Data-labels plugin (show values on bars/lines) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -851,6 +853,10 @@
                 <span>Horizontal Bars</span>
                 <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="pushUndo();cfg.horizontal=this.checked;render()" />
               </label>
+              <label class="toggle-row">
+                <span>Show Data Labels</span>
+                <input type="checkbox" class="toggle-cb" id="tog-dlabels" onchange="pushUndo();cfg.options.showDataLabels=this.checked;render()" />
+              </label>
             </div>
           </div>
         </div>
@@ -903,7 +909,7 @@
         colors: Array(6).fill('#6366f1'),
         uncertain: Array(6).fill(false),
       }],
-      options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
+      options: { showLegend: true, showGrid: true, canvasBg: '#ffffff', showDataLabels: false, dataLabelColor: '#333333' },
       style: {
         title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
         xlabel:  { fontSize: 13, color: '#475569', x: null, y: null },
@@ -1103,17 +1109,22 @@
   ───────────────────────────────────────────── */
   function applyParsed(parsed) {
     const nLabels = (parsed.labels || []).length;
+    const opts    = parsed.options || {};
+    const sty     = parsed.style  || {};
+    const def     = defaultCfg();
+
     cfg = {
       type:       parsed.chartType || 'bar',
-      horizontal: false,
-      title:      parsed.title || '',
+      horizontal: !!parsed.horizontal,
+      title:      parsed.title      || '',
       xAxisLabel: parsed.xAxisLabel || '',
       yAxisLabel: parsed.yAxisLabel || '',
-      labels:     parsed.labels || [],
+      labels:     parsed.labels     || [],
       datasets:   (parsed.datasets || []).map((ds, i) => {
-        const fallback = PALETTE[i % PALETTE.length];
-        const rawColors = Array.isArray(ds.backgroundColor) ? ds.backgroundColor : Array(nLabels).fill(ds.backgroundColor || fallback);
-        // Normalise every colour to #rrggbb so <input type=color> always shows the right swatch
+        const fallback  = PALETTE[i % PALETTE.length];
+        const rawColors = Array.isArray(ds.backgroundColor)
+          ? ds.backgroundColor
+          : Array(nLabels).fill(ds.backgroundColor || fallback);
         const hexColors = rawColors.map(c => normalizeHex(c) || fallback);
         return {
           label:    ds.label || `Series ${i+1}`,
@@ -1124,10 +1135,47 @@
             !!(ds.uncertainIndices || []).includes(idx)),
         };
       }),
-      options: { showLegend: true, showGrid: true, canvasBg: '#ffffff' },
-      style: defaultCfg().style,
+      options: {
+        showLegend:     opts.showLegend     !== false,
+        showGrid:       opts.showGrid       !== false,
+        showDataLabels: !!opts.showDataLabels,
+        dataLabelColor: normalizeHex(opts.dataLabelColor) || '#333333',
+        canvasBg:       normalizeHex(opts.backgroundColor) || '#ffffff',
+      },
+      style: {
+        ...def.style,
+        title: {
+          ...def.style.title,
+          fontSize:   sty.titleFontSize  || def.style.title.fontSize,
+          color:      normalizeHex(sty.titleColor) || def.style.title.color,
+          fontWeight: sty.titleBold === true ? '700' : sty.titleBold === false ? '400' : def.style.title.fontWeight,
+        },
+        legend: {
+          ...def.style.legend,
+          position: opts.legendPosition || def.style.legend.position,
+        },
+        xlabel: {
+          ...def.style.xlabel,
+          fontSize: sty.axisFontSize  || def.style.xlabel.fontSize,
+          color:    normalizeHex(sty.axisColor) || def.style.xlabel.color,
+        },
+        ylabel: {
+          ...def.style.ylabel,
+          fontSize: sty.axisFontSize  || def.style.ylabel.fontSize,
+          color:    normalizeHex(sty.axisColor) || def.style.ylabel.color,
+        },
+        xticks: {
+          ...def.style.xticks,
+          fontSize: sty.tickFontSize  || def.style.xticks.fontSize,
+          color:    normalizeHex(sty.tickColor) || def.style.xticks.color,
+        },
+        yticks: {
+          ...def.style.yticks,
+          fontSize: sty.tickFontSize  || def.style.yticks.fontSize,
+          color:    normalizeHex(sty.tickColor) || def.style.yticks.color,
+        },
+      },
     };
-    // Fresh chart — clear undo history
     undoStack = []; redoStack = [];
     updateUndoButtons();
     closeInspector();
@@ -1381,6 +1429,9 @@
 
       // Patch options
       chartInstance.options.layout.padding.top = titlePad;
+      // Patch datalabels
+      const dl = chartInstance.options.plugins.datalabels;
+      if (dl) { dl.display = !!cfg.options.showDataLabels; dl.color = cfg.options.dataLabelColor || '#333333'; }
       const leg = chartInstance.options.plugins.legend;
       leg.display         = cfg.options.showLegend && s.legend.x == null;
       leg.position        = s.legend.position || 'top';
@@ -1445,6 +1496,16 @@
           title:          { display: false },
           customElements: {},
           tooltip: { enabled: false }, // we render our own draggable HTML tooltip
+          datalabels: {
+            display:   !!cfg.options.showDataLabels,
+            color:     cfg.options.dataLabelColor || '#333333',
+            font:      { size: 11, weight: '600' },
+            formatter: v => (v !== null && v !== undefined) ? v : '',
+            anchor:    isHorizBar ? 'end' : 'end',
+            align:     isHorizBar ? 'right' : 'top',
+            offset:    3,
+            clip:      false,
+          },
         },
         scales,
       },
@@ -2361,9 +2422,10 @@
     document.getElementById('input-ylabel').value = cfg.yAxisLabel;
 
     // Sync toggles
-    document.getElementById('tog-legend').checked = cfg.options.showLegend !== false;
-    document.getElementById('tog-grid').checked   = cfg.options.showGrid   !== false;
-    document.getElementById('tog-hbar').checked   = !!cfg.horizontal;
+    document.getElementById('tog-legend').checked  = cfg.options.showLegend     !== false;
+    document.getElementById('tog-grid').checked    = cfg.options.showGrid       !== false;
+    document.getElementById('tog-hbar').checked    = !!cfg.horizontal;
+    document.getElementById('tog-dlabels').checked = !!cfg.options.showDataLabels;
 
     // Sync canvas bg
     const bg = cfg.options.canvasBg || '#ffffff';
@@ -2615,12 +2677,13 @@
     const ai    = getAI(app, { backend: new GoogleAIBackend() });
     const model = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
 
-    const PROMPT = `You are an expert chart data extractor. Analyse this chart image carefully and extract ALL data.
+    const PROMPT = `You are an expert chart data extractor. Analyse this chart image carefully and extract ALL data and visual properties.
 
 Return ONLY a valid JSON object — no markdown, no explanation, no code fences. Exactly this structure:
 
 {
   "chartType": "bar",
+  "horizontal": false,
   "title": "Chart title or null",
   "xAxisLabel": "x-axis label or null",
   "yAxisLabel": "y-axis label or null",
@@ -2632,11 +2695,29 @@ Return ONLY a valid JSON object — no markdown, no explanation, no code fences.
       "backgroundColor": ["#4285f4", "#4285f4", "#4285f4"],
       "uncertainIndices": [1]
     }
-  ]
+  ],
+  "options": {
+    "showDataLabels": false,
+    "dataLabelColor": "#333333",
+    "showLegend": true,
+    "legendPosition": "top",
+    "showGrid": true,
+    "backgroundColor": "#ffffff"
+  },
+  "style": {
+    "titleFontSize": 18,
+    "titleColor": "#000000",
+    "titleBold": true,
+    "axisFontSize": 12,
+    "axisColor": "#666666",
+    "tickFontSize": 11,
+    "tickColor": "#888888"
+  }
 }
 
 Rules:
 - chartType must be one of: bar, line, area, pie, doughnut, scatter
+- horizontal: true only if bars run left-to-right (horizontal bar chart)
 - For pie/doughnut: one dataset with all slice values; backgroundColor array has one colour per slice
 - For scatter: data is [{x: number, y: number}] objects
 - For all other types: data is plain numbers matching labels in order
@@ -2645,7 +2726,16 @@ Rules:
 - Extract hex colours from the chart when visible; otherwise choose sensible defaults
 - Include ALL series shown in a legend as separate dataset entries
 - Return null (not empty string) for title/xAxisLabel/yAxisLabel when not present
-- uncertainIndices: array of 0-based indices where you were unsure about the value (ambiguous, hard to read, or estimated with low confidence). Use [] when all values are confident`;
+- uncertainIndices: array of 0-based indices where you were unsure about the value. Use [] when confident
+- showDataLabels: true if numeric value labels are visible directly on bars, lines, or slices
+- dataLabelColor: the colour of those value labels (default #333333 on light bg, #ffffff on dark)
+- legendPosition: one of "top", "bottom", "left", "right" — match what you see in the image
+- showLegend: false if there is no visible legend
+- showGrid: false if no grid lines are visible behind the chart
+- backgroundColor: the chart/plot area background colour (typically white or very light)
+- titleFontSize: approximate px size (e.g. 14, 16, 18, 22, 28) — judge relative to body text
+- titleBold: true if the title appears bold or heavy weight
+- axisFontSize / tickFontSize: approximate sizes for axis labels and tick labels`;
 
     window.parseChartWithAI = async function(base64Data, mimeType) {
       const result = await model.generateContent([
