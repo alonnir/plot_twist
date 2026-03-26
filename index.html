@@ -290,7 +290,10 @@
       display: flex; align-items: center; justify-content: space-between;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--border);
+      cursor: grab;
+      user-select: none;
     }
+    .insp-header:active { cursor: grabbing; }
     .insp-title { font-size: 12px; font-weight: 600; color: var(--indigo); text-transform: uppercase; letter-spacing: .06em; }
     .insp-close { background: none; border: none; color: var(--text-muted); font-size: 18px; line-height: 1; padding: 0; cursor: pointer; }
     .insp-close:hover { color: var(--text); }
@@ -1470,13 +1473,20 @@
   const DRAG_THRESHOLD = 5; // px movement before drag activates
 
   // ── Tooltip drag state ──────────────────────────────────────────────────
-  let tooltipPinnedX  = null; // null = follow cursor; number = pinned
+  let tooltipPinnedX  = null;
   let tooltipPinnedY  = null;
   let tooltipDragging = false;
   let tooltipDragSX   = 0;
   let tooltipDragSY   = 0;
   let tooltipDragOX   = 0;
   let tooltipDragOY   = 0;
+
+  // ── Inspector drag state ─────────────────────────────────────────────────
+  let inspDragging = false;
+  let inspDragSX   = 0;
+  let inspDragSY   = 0;
+  let inspDragOX   = 0;
+  let inspDragOY   = 0;
 
   // ── Sync overlay canvas to sit exactly over the chart canvas ──
   function syncOverlay() {
@@ -2492,14 +2502,23 @@
   }
 
   /* ─────────────────────────────────────────────
-     TOOLTIP DRAG — global handlers
+     DRAG — global handlers (tooltip + inspector)
   ───────────────────────────────────────────── */
   document.addEventListener('mousemove', e => {
-    if (!tooltipDragging) return;
-    const x = tooltipDragOX + (e.clientX - tooltipDragSX);
-    const y = tooltipDragOY + (e.clientY - tooltipDragSY);
-    const el = document.getElementById('tooltip-float');
-    if (el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+    if (tooltipDragging) {
+      const el = document.getElementById('tooltip-float');
+      if (el) {
+        el.style.left = (tooltipDragOX + e.clientX - tooltipDragSX) + 'px';
+        el.style.top  = (tooltipDragOY + e.clientY - tooltipDragSY) + 'px';
+      }
+    }
+    if (inspDragging) {
+      const insp = document.getElementById('inspector');
+      if (insp) {
+        insp.style.left = (inspDragOX + e.clientX - inspDragSX) + 'px';
+        insp.style.top  = (inspDragOY + e.clientY - inspDragSY) + 'px';
+      }
+    }
   });
 
   document.addEventListener('mouseup', () => {
@@ -2508,6 +2527,7 @@
       const el = document.getElementById('tooltip-float');
       if (el) el.style.cursor = 'grab';
     }
+    inspDragging = false;
   });
 
   /* ─────────────────────────────────────────────
@@ -2538,7 +2558,38 @@
   /* ─────────────────────────────────────────────
      BOOT
   ───────────────────────────────────────────── */
-  document.addEventListener('DOMContentLoaded', initFirebase);
+  document.addEventListener('DOMContentLoaded', () => {
+    initFirebase();
+
+    // ── Inspector header drag ──────────────────────────────────────────────
+    document.querySelector('.insp-header').addEventListener('mousedown', e => {
+      if (e.target.closest('.insp-close')) return; // don't drag when clicking ×
+      const insp = document.getElementById('inspector');
+      inspDragging = true;
+      inspDragSX   = e.clientX;
+      inspDragSY   = e.clientY;
+      inspDragOX   = parseFloat(insp.style.left) || 0;
+      inspDragOY   = parseFloat(insp.style.top)  || 0;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    // ── Click-outside closes tooltip and inspector ─────────────────────────
+    document.addEventListener('click', e => {
+      // Close data tooltip
+      const tt = document.getElementById('tooltip-float');
+      if (tt && tt.style.display !== 'none' && !tt.contains(e.target)) {
+        closeTooltip();
+      }
+      // Close inspector when clicking outside it and outside the overlay canvas
+      const insp = document.getElementById('inspector');
+      const ov   = document.getElementById('overlay-canvas');
+      if (insp && insp.style.display === 'flex' &&
+          !insp.contains(e.target) && e.target !== ov) {
+        closeInspector();
+      }
+    });
+  });
   </script>
 
 
