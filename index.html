@@ -757,6 +757,9 @@
                 <button class="type-btn" data-type="doughnut" onclick="setChartType('doughnut')">
                   <svg viewBox="0 0 24 24"><path d="M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z M12 7 A5 5 0 1 1 12 17 A5 5 0 1 1 12 7 Z" fill="currentColor" opacity=".7"/></svg>Donut
                 </button>
+                <button class="type-btn" data-type="waffle" onclick="setChartType('waffle')">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9.5" y="2" width="5" height="5" rx="1"/><rect x="17" y="2" width="5" height="5" rx="1"/><rect x="2" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><rect x="17" y="9.5" width="5" height="5" rx="1"/><rect x="2" y="17" width="5" height="5" rx="1"/><rect x="9.5" y="17" width="5" height="5" rx="1"/><rect x="17" y="17" width="5" height="5" rx="1"/></svg>Waffle
+                </button>
                 <button class="type-btn" data-type="scatter" onclick="setChartType('scatter')">
                   <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="18" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="16" cy="14" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="14" cy="18" r="2"/></svg>Scatter
                 </button>
@@ -1206,12 +1209,17 @@
     ctx.globalAlpha  = alpha ?? 1;
     ctx.font         = `${fs}px ${s.fontFamily || 'Inter,sans-serif'}`;
     ctx.textBaseline = 'middle';
-    const items = chartInstance.data.datasets.map((ds, i) => {
-      const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
-      const c = isArc ? (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor)
-                      : (ds.borderColor || (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || PALETTE[i % PALETTE.length]);
-      return { color: typeof c === 'string' ? c : PALETTE[i % PALETTE.length], label: ds.label || `Series ${i+1}` };
-    });
+    const isArcType = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const items = chartInstance
+      ? chartInstance.data.datasets.map((ds, i) => {
+          const c = isArcType ? (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor)
+                              : (ds.borderColor || (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || PALETTE[i % PALETTE.length]);
+          return { color: typeof c === 'string' ? c : PALETTE[i % PALETTE.length], label: ds.label || `Series ${i+1}` };
+        })
+      : cfg.labels.map((lbl, i) => ({
+          color: (cfg.datasets[0]?.colors || [])[i] || PALETTE[i % PALETTE.length],
+          label: lbl,
+        }));
     const widths  = items.map(it => sw + gap + ctx.measureText(it.label).width);
     const totalW  = widths.reduce((a,b)=>a+b,0) + (items.length-1)*itemGap;
     let dx = cx - totalW/2;
@@ -1429,6 +1437,7 @@
   }
 
   function render() {
+    if (cfg.type === 'waffle') { renderWaffle(); return; }
     const canvas  = document.getElementById('chart-canvas');
     const wrapper = document.getElementById('canvas-wrapper');
     wrapper.style.background = cfg.options.canvasBg || '#ffffff';
@@ -1532,6 +1541,125 @@
   }
 
   /* ─────────────────────────────────────────────
+     WAFFLE CHART RENDERER
+  ───────────────────────────────────────────── */
+  function renderWaffle() {
+    const canvas  = document.getElementById('chart-canvas');
+    const wrapper = document.getElementById('canvas-wrapper');
+    wrapper.style.background = cfg.options.canvasBg || '#ffffff';
+
+    // Destroy any existing Chart.js instance
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+    // Size canvas to wrapper
+    canvas.width  = wrapper.clientWidth  || 600;
+    canvas.height = wrapper.clientHeight || 400;
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = cfg.options.canvasBg || '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const s = cfg.style;
+
+    // ── Title ──────────────────────────────────────────────────────────────
+    let topPad = 12;
+    if (cfg.title && !dragTitleHidden) {
+      ctx.save();
+      ctx.font         = `${s.title.fontWeight} ${s.title.fontSize}px ${s.title.fontFamily}`;
+      ctx.fillStyle    = s.title.color;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      const tx = (s.title.x != null) ? s.title.x : W / 2;
+      const ty = (s.title.y != null) ? s.title.y : Math.round(s.title.fontSize / 2) + 6;
+      ctx.fillText(cfg.title, tx, ty);
+      ctx.restore();
+      topPad = Math.max(topPad, ty + s.title.fontSize / 2 + 10);
+    }
+
+    // ── Grid geometry ──────────────────────────────────────────────────────
+    const COLS = 10, ROWS = 10, TOTAL = 100;
+    const legendH = cfg.options.showLegend ? (s.legend.fontSize || 13) + 20 : 0;
+    const padH = 16, padV = 8;
+    const availW = W - padH * 2;
+    const availH = H - topPad - legendH - padV;
+    const cellSize = Math.max(4, Math.floor(Math.min(availW / COLS, availH / ROWS)));
+    const gap      = Math.max(1, Math.floor(cellSize * 0.12));
+    const sqSize   = cellSize - gap;
+    const gridW    = cellSize * COLS;
+    const gridH    = cellSize * ROWS;
+    const startX   = Math.round((W - gridW) / 2);
+    const startY   = Math.round(topPad + (availH - gridH) / 2);
+
+    // ── Allocate cells (largest-remainder method) ──────────────────────────
+    const ds      = cfg.datasets[0];
+    const values  = ds ? ds.data.map(v => Math.max(0, Number(v) || 0)) : [];
+    const colors  = ds?.colors || [];
+    const total   = values.reduce((a, b) => a + b, 0) || 1;
+    const exact   = values.map(v => v / total * TOTAL);
+    const floors  = exact.map(v => Math.floor(v));
+    let   surplus = TOTAL - floors.reduce((a, b) => a + b, 0);
+    exact.map((v, i) => ({ i, r: v - floors[i] }))
+         .sort((a, b) => b.r - a.r)
+         .forEach(({ i }) => { if (surplus > 0) { floors[i]++; surplus--; } });
+
+    // ── Build cell-colour array ────────────────────────────────────────────
+    const cellColors = [];
+    values.forEach((_, i) => {
+      const c = colors[i] || PALETTE[i % PALETTE.length];
+      for (let j = 0; j < floors[i]; j++) cellColors.push(c);
+    });
+    while (cellColors.length < TOTAL) cellColors.push('#e2e8f0');
+
+    // ── Draw cells ─────────────────────────────────────────────────────────
+    const radius = Math.max(1, sqSize * 0.15);
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const idx = row * COLS + col;
+        ctx.fillStyle = cellColors[idx] || '#e2e8f0';
+        const rx = startX + col * cellSize;
+        const ry = startY + row * cellSize;
+        ctx.beginPath();
+        ctx.roundRect(rx, ry, sqSize, sqSize, radius);
+        ctx.fill();
+      }
+    }
+
+    // ── Data labels (% per category, centred over its cells) ──────────────
+    if (cfg.options.showDataLabels) {
+      ctx.save();
+      ctx.font         = `600 11px ${s.title.fontFamily || "'Space Grotesk',sans-serif"}`;
+      ctx.fillStyle    = cfg.options.dataLabelColor || '#333333';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      let cursor = 0;
+      values.forEach((v, i) => {
+        const count = floors[i];
+        if (!count) return;
+        const pct     = Math.round(v / total * 100);
+        const midCell = cursor + Math.floor(count / 2);
+        const midRow  = Math.floor(midCell / COLS);
+        const midCol  = midCell % COLS;
+        ctx.fillText(`${pct}%`,
+          startX + midCol * cellSize + sqSize / 2,
+          startY + midRow * cellSize + sqSize / 2);
+        cursor += count;
+      });
+      ctx.restore();
+    }
+
+    // ── Legend ─────────────────────────────────────────────────────────────
+    if (cfg.options.showLegend && !dragLegendHidden) {
+      const lx = s.legend.x != null ? s.legend.x : W / 2;
+      const ly = s.legend.y != null ? s.legend.y : startY + gridH + legendH / 2 + 4;
+      drawLegendAt(ctx, lx, ly, 1);
+    }
+
+    setupHitLayer();
+  }
+
+  /* ─────────────────────────────────────────────
      INSPECTOR / OVERLAY CANVAS
   ───────────────────────────────────────────── */
   const FONTS = [
@@ -1598,16 +1726,15 @@
 
   // ── Hit detection using Chart.js internal layout boxes ──
   function getHitZone(cx, cy) {
-    if (!chartInstance) return null;
-    const ca  = chartInstance.chartArea;
-    const chart = document.getElementById('chart-canvas');
-
-    // 1. Data elements
-    const native = { clientX: chart.getBoundingClientRect().left + cx,
-                     clientY: chart.getBoundingClientRect().top  + cy,
-                     target: chart };
-    const els = chartInstance.getElementsAtEventForMode(native, 'nearest', { intersect: true }, false);
-    if (els.length) return { type: 'series', datasetIndex: els[0].datasetIndex, index: els[0].index };
+    // 1. Data elements (Chart.js only — not available for waffle)
+    if (chartInstance) {
+      const chart = document.getElementById('chart-canvas');
+      const native = { clientX: chart.getBoundingClientRect().left + cx,
+                       clientY: chart.getBoundingClientRect().top  + cy,
+                       target: chart };
+      const els = chartInstance.getElementsAtEventForMode(native, 'nearest', { intersect: true }, false);
+      if (els.length) return { type: 'series', datasetIndex: els[0].datasetIndex, index: els[0].index };
+    }
 
     // 2. Title — use our custom position bounds
     if (cfg.title) {
@@ -1638,27 +1765,32 @@
     }
 
     // 6. X tick area (below chart area, but not the axis label)
-    const scX = chartInstance.scales?.x;
-    if (scX && cy > ca.bottom && cy <= scX.bottom && cx >= scX.left && cx <= scX.right)
-      return { type: 'xticks' };
+    if (chartInstance) {
+      const ca  = chartInstance.chartArea;
+      const scX = chartInstance.scales?.x;
+      if (scX && cy > ca.bottom && cy <= scX.bottom && cx >= scX.left && cx <= scX.right)
+        return { type: 'xticks' };
 
-    // 7. Y tick area (left of chart area, but not the axis label)
-    const scY = chartInstance.scales?.y;
-    if (scY && cx < ca.left && cx >= scY.left && cy >= scY.top && cy <= scY.bottom)
-      return { type: 'yticks' };
+      // 7. Y tick area (left of chart area, but not the axis label)
+      const scY = chartInstance.scales?.y;
+      if (scY && cx < ca.left && cx >= scY.left && cy >= scY.top && cy <= scY.bottom)
+        return { type: 'yticks' };
+    }
 
     return null;
   }
 
   // ── Get bounding box [l,t,r,b] for each zone (in overlay CSS px) ──
   function getZoneBounds(zone) {
-    if (!chartInstance || !zone) return null;
-    const ca = chartInstance.chartArea;
+    if (!zone) return null;
+    const ca = chartInstance?.chartArea;
+    const canvas = document.getElementById('chart-canvas');
     switch (zone.type) {
       case 'title': {
         if (!cfg.title) return null;
         const s    = cfg.style?.title || {};
-        const W    = chartInstance.width, H = chartInstance.height;
+        const W    = chartInstance ? chartInstance.width  : canvas.width;
+        const H    = chartInstance ? chartInstance.height : canvas.height;
         const cx   = (s.x != null) ? s.x : W / 2;
         const cy   = (s.y != null) ? s.y : Math.round(s.fontSize / 2) + 6;
         const fStr = `${s.fontWeight||'700'} ${s.fontSize||18}px ${s.fontFamily||'sans-serif'}`;
@@ -1676,11 +1808,14 @@
           // Free-positioned: measure actual rendered width
           const fs = sl.fontSize || 13, sw = fs-2, gap=5, iGap=14, pad=8;
           const fStr = `${fs}px ${sl.fontFamily||'Inter,sans-serif'}`;
-          const items = chartInstance.data.datasets;
+          const items = chartInstance
+            ? chartInstance.data.datasets
+            : cfg.labels.map((lbl, i) => ({ label: lbl }));
           const totalW = items.reduce((s,ds) => s + sw + gap + measureTxt(ds.label||'',fStr) + iGap, 0) - iGap;
           return [sl.x-totalW/2-pad, sl.y-(fs/2)-pad, sl.x+totalW/2+pad, sl.y+(fs/2)+pad];
         }
         // Chart.js legend — use legendHitBoxes for tight content bounds
+        if (!chartInstance) return null;
         const l = chartInstance.legend;
         if (!l) return null;
         const hb = l.legendHitBoxes;
@@ -2270,17 +2405,18 @@
     document.querySelectorAll('.type-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
     // Show/hide horizontal toggle
+    const isArcLike = (type === 'pie' || type === 'doughnut' || type === 'waffle');
     document.getElementById('tog-hbar-row').style.display = type === 'bar' ? '' : 'none';
-    document.getElementById('tog-grid-row').style.display = (type === 'pie' || type === 'doughnut') ? 'none' : '';
-    document.getElementById('axis-label-fields').style.display = (type === 'pie' || type === 'doughnut') ? 'none' : '';
-    document.getElementById('series-section').style.display    = (type === 'pie' || type === 'doughnut') ? 'none' : '';
+    document.getElementById('tog-grid-row').style.display = isArcLike ? 'none' : '';
+    document.getElementById('axis-label-fields').style.display = isArcLike ? 'none' : '';
+    document.getElementById('series-section').style.display    = isArcLike ? 'none' : '';
     buildColourSection();
     render();
   }
 
   function buildColourSection() {
     const el = document.getElementById('colour-section');
-    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
     if (isArc) {
       el.innerHTML = `<div class="edit-section-title">Slice Colours</div>` +
         cfg.labels.map((lbl, i) => {
@@ -2450,7 +2586,7 @@
     document.getElementById('canvas-bg-input').value = bg;
 
     // Show/hide axis fields
-    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
     document.getElementById('axis-label-fields').style.display = isArc ? 'none' : '';
     document.getElementById('series-section').style.display    = isArc ? 'none' : '';
     document.getElementById('tog-hbar-row').style.display      = cfg.type === 'bar' ? '' : 'none';
@@ -2733,9 +2869,10 @@ Return ONLY a valid JSON object — no markdown, no explanation, no code fences.
 }
 
 Rules:
-- chartType must be one of: bar, line, area, pie, doughnut, scatter
+- chartType must be one of: bar, line, area, pie, doughnut, scatter, waffle
 - horizontal: true only if bars run left-to-right (horizontal bar chart)
-- For pie/doughnut: one dataset with all slice values; backgroundColor array has one colour per slice
+- For pie/doughnut/waffle: one dataset with all category values; backgroundColor array has one colour per category
+- For waffle: data values represent counts or percentages (any scale — they will be normalised to 100 cells); labels are the category names
 - For scatter: data is [{x: number, y: number}] objects
 - For all other types: data is plain numbers matching labels in order
 - Read exact values from axis tick marks and data labels when visible
