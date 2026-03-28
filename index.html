@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ChartReimaginer</title>
+  <title>Plot Twist</title>
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -401,6 +401,47 @@
       width: 100%; height: 100%; cursor: pointer;
     }
 
+    /* ── Custom Colour Picker Popup ───────────────────────────── */
+    .cp-popup {
+      position: fixed; z-index: 10000;
+      background: var(--bg-panel); border: 1px solid var(--border-lt);
+      border-radius: 10px; padding: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      width: 202px;
+    }
+    .cp-presets-grid {
+      display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px;
+      margin-bottom: 8px;
+    }
+    .cp-swatch {
+      width: 18px; height: 18px; border-radius: 4px;
+      cursor: pointer; border: 1.5px solid rgba(255,255,255,.12);
+      transition: transform .1s, border-color .1s;
+    }
+    .cp-swatch:hover { transform: scale(1.3); border-color: rgba(255,255,255,.6); }
+    .cp-section-label { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+    .cp-recent-row { margin-bottom: 8px; }
+    .cp-swatches-row { display: flex; gap: 4px; flex-wrap: wrap; }
+    .cp-hex-row { display: flex; gap: 5px; align-items: center; margin-top: 8px; }
+    .cp-preview {
+      width: 26px; height: 26px; border-radius: 5px; flex-shrink: 0;
+      border: 1.5px solid var(--border-lt); cursor: pointer;
+    }
+    .cp-hex-input {
+      flex: 1; padding: 5px 7px; font-size: 12px; font-family: 'Space Mono', monospace;
+      background: var(--bg-input); border: 1px solid var(--border-lt);
+      border-radius: 5px; color: var(--text); outline: none;
+      text-transform: uppercase; min-width: 0;
+    }
+    .cp-hex-input:focus { border-color: var(--indigo); }
+    .cp-wheel-btn {
+      background: var(--bg-input); border: 1px solid var(--border-lt);
+      border-radius: 5px; cursor: pointer; font-size: 13px;
+      padding: 4px 6px; flex-shrink: 0; color: var(--text-muted);
+      transition: border-color .15s;
+    }
+    .cp-wheel-btn:hover { border-color: var(--indigo); }
+    .cp-native-hidden { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+
     /* Field inputs */
     .field-group { display: flex; flex-direction: column; gap: 4px; }
     .field-label { font-size: 11px; color: var(--text-dim); }
@@ -626,10 +667,14 @@
     .series-style-input { width: 44px; padding: 4px 5px; font-size: 11px; background: var(--bg-input); border: 1px solid var(--border-lt); border-radius: 4px; color: var(--text); }
 
     /* ── Hidden row in data table ─────────────────────────────── */
-    .tbl-row-hidden td { opacity: .35; }
-    .btn-eye { background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; color: var(--text-dim); }
-    .btn-eye:hover { color: var(--text); }
-    .btn-eye.hidden-row { color: var(--text-dim); opacity: .5; }
+    .tbl-row-hidden td { opacity: .3; }
+    .btn-eye {
+      background: none; border: none; cursor: pointer; padding: 0 3px; line-height: 1;
+      display: flex; align-items: center; opacity: .45; transition: opacity .15s;
+    }
+    .btn-eye:hover { opacity: 1; }
+    .btn-eye.hidden-row { opacity: .25; }
+    .btn-eye svg { display: block; }
 
     /* ── Export big button ────────────────────────────────────── */
     .btn-export-big {
@@ -655,7 +700,7 @@
   <div id="loading-screen">
     <div class="loading-brand">
       <span class="loading-icon">📊</span>
-      <span class="loading-title">ChartReimaginer</span>
+      <span class="loading-title">Plot Twist</span>
     </div>
     <div class="spinner"></div>
   </div>
@@ -675,7 +720,7 @@
     <div class="login-card">
       <div class="login-brand">
         <span class="login-brand-icon">📊</span>
-        <span class="login-brand-name">ChartReimaginer</span>
+        <span class="login-brand-name">Plot Twist</span>
       </div>
       <p class="login-tagline">
         Upload any chart image. AI reads the data, then you control everything —
@@ -703,7 +748,7 @@
     <header class="top-nav">
       <div class="nav-brand">
         <span class="nav-brand-icon">📊</span>
-        <span class="nav-brand-name">ChartReimaginer</span>
+        <span class="nav-brand-name">Plot Twist</span>
       </div>
       <div class="nav-right">
         <span class="nav-user" id="nav-user-name"></span>
@@ -865,6 +910,18 @@
                 <span>Horizontal Bars</span>
                 <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="pushUndo();cfg.horizontal=this.checked;render()" />
               </label>
+              <label class="toggle-row" style="margin-top:6px">
+                <span>Stacked</span>
+                <input type="checkbox" class="toggle-cb" id="tog-stacked" onchange="pushUndo();cfg.options.stacked=this.checked;render()" />
+              </label>
+              <div style="margin-top:8px">
+                <div class="field-label" style="margin-bottom:4px">Rounded corners</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input type="range" id="bar-radius-slider" min="0" max="20" step="1" value="0"
+                    style="flex:1" oninput="pushUndo();cfg.options.barBorderRadius=+this.value;document.getElementById('bar-radius-val').textContent=this.value+'px';render()" />
+                  <span id="bar-radius-val" style="font-size:11px;color:var(--text-dim);min-width:28px">0px</span>
+                </div>
+              </div>
             </div>
             <div class="edit-section">
               <div class="edit-section-title">Figure Size</div>
@@ -1124,10 +1181,9 @@
               <div class="edit-section-title">Background</div>
               <div class="colour-row">
                 <span class="colour-row-name">Canvas colour</span>
-                <div class="colour-wrap">
-                  <span class="colour-dot lg bordered" id="canvas-bg-dot" style="background:#fff"></span>
-                  <input type="color" class="colour-hidden" id="canvas-bg-input" value="#ffffff" oninput="setCanvasBg(this.value)" />
-                </div>
+                <span class="colour-dot lg bordered" id="canvas-bg-dot" style="background:#fff"
+                  onclick="openColorPicker(this, cfg.options.canvasBg||'#ffffff', v=>setCanvasBg(v))"
+                  title="Canvas background"></span>
               </div>
             </div>
           </div>
@@ -1227,6 +1283,8 @@
         yAxisMin: null, yAxisMax: null,
         legendTitle: '',
         figWidth: null, figHeight: null,
+        barBorderRadius: 0,
+        stacked: false,
       },
       style: {
         title:    { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
@@ -1470,12 +1528,14 @@
         valueLabelPos:  'top',
         labelFormat:    'number',
         currencySymbol: '$',
-        xTickAngle:     null,
-        yAxisMin:       null,
-        yAxisMax:       null,
-        legendTitle:    '',
-        figWidth:       null,
-        figHeight:      null,
+        xTickAngle:       null,
+        yAxisMin:         null,
+        yAxisMax:         null,
+        legendTitle:      '',
+        figWidth:         null,
+        figHeight:        null,
+        barBorderRadius:  0,
+        stacked:          false,
       },
       style: {
         ...def.style,
@@ -1767,6 +1827,7 @@
         tension:          (isArea || cfg.type === 'line') ? 0.4 : undefined,
         pointRadius:      cfg.type === 'line' ? 4 : 3,
         pointHoverRadius: cfg.type === 'line' ? 6 : 5,
+        borderRadius:     cfg.type === 'bar' ? (cfg.options.barBorderRadius || 0) : undefined,
         // Store for gradient plugin
         _dsIndex:         i,
       };
@@ -1880,11 +1941,13 @@
     const yMax = cfg.options.yAxisMax;
 
     // ── Can we update in-place? ──────────────────────────────────────────
-    const curType   = chartInstance?.config?.type;
-    const curHoriz  = chartInstance?.options?.indexAxis === 'y';
-    const canReuse  = chartInstance
-                      && curType  === chartType
-                      && curHoriz === isHorizBar;
+    const curType    = chartInstance?.config?.type;
+    const curHoriz   = chartInstance?.options?.indexAxis === 'y';
+    const curStacked = chartInstance?.options?.scales?.x?.stacked;
+    const canReuse   = chartInstance
+                       && curType    === chartType
+                       && curHoriz   === isHorizBar
+                       && !!curStacked === !!cfg.options.stacked;
 
     if (canReuse) {
       chartInstance.data.labels   = visLabels;
@@ -1938,13 +2001,16 @@
       ? { display: true, text: cfg.options.legendTitle, color: s.legend.color, font: { size: s.legend.fontSize - 1, weight: '600' } }
       : { display: false };
 
+    const isStacked = cfg.type === 'bar' && !!cfg.options.stacked;
     const scales = isArc ? {} : {
       x: {
+        stacked: isStacked,
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
         ticks: xTickOpts,
         title: { display: !!cfg.xAxisLabel && s.xlabel.x == null, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
       },
       y: {
+        stacked: isStacked,
         min:   yMin != null ? yMin : undefined,
         max:   yMax != null ? yMax : undefined,
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
@@ -2944,9 +3010,10 @@
     cfg.type = type;
     document.querySelectorAll('.type-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
-    // Show/hide horizontal toggle
+    // Show/hide bar-only and arc-only controls
+    const isBar     = type === 'bar';
     const isArcLike = (type === 'pie' || type === 'doughnut' || type === 'waffle');
-    document.getElementById('tog-hbar-row').style.display = type === 'bar' ? '' : 'none';
+    document.getElementById('tog-hbar-row').style.display = isBar ? '' : 'none';
     document.getElementById('tog-grid-row').style.display = isArcLike ? 'none' : '';
     document.getElementById('axis-label-fields').style.display = isArcLike ? 'none' : '';
     document.getElementById('series-section').style.display    = isArcLike ? 'none' : '';
@@ -2964,10 +3031,8 @@
           const c = (cfg.datasets[0]?.colors || [])[i] || PALETTE[i % PALETTE.length];
           return `<div class="colour-row">
             <span class="colour-row-name">${escHtml(lbl)}</span>
-            <div class="colour-wrap">
-              <span class="colour-dot" id="slice-dot-${i}" style="background:${c}"></span>
-              <input type="color" class="colour-hidden" value="${c}" oninput="setSliceColor(${i}, this.value)" />
-            </div>
+            <span class="colour-dot" id="slice-dot-${i}" style="background:${c}"
+              onclick="openColorPicker(this,'${c}',v=>{setSliceColor(${i},v)})" title="${c}"></span>
           </div>`;
         }).join('');
     } else {
@@ -2979,10 +3044,8 @@
           return `<div style="padding:8px;background:var(--bg-card);border-radius:var(--r);margin-bottom:6px">
             <div class="colour-row">
               <span class="colour-row-name" style="font-weight:500">${escHtml(ds.label)}</span>
-              <div class="colour-wrap">
-                <span class="colour-dot lg" id="series-dot-${i}" style="background:${c}"></span>
-                <input type="color" class="colour-hidden" value="${c}" oninput="setSeriesColor(${i}, this.value)" />
-              </div>
+              <span class="colour-dot lg" id="series-dot-${i}" style="background:${c}"
+                onclick="openColorPicker(this,'${c}',v=>{setSeriesColor(${i},v)})" title="${c}"></span>
             </div>
             <div class="series-style-row">
               ${canGradient ? `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer">
@@ -2990,11 +3053,8 @@
               <span class="series-style-label">Border</span>
               <input class="series-style-input" type="number" min="0" max="10" value="${bw}" title="Border width (px)"
                 onfocus="pushUndo()" oninput="cfg.datasets[${i}].borderWidth=+this.value;render()" />
-              <div class="colour-wrap" title="Border colour">
-                <span class="colour-dot" style="background:${bc};width:18px;height:18px"></span>
-                <input type="color" class="colour-hidden" value="${bc}"
-                  oninput="cfg.datasets[${i}].borderColor=this.value;render()" />
-              </div>
+              <span class="colour-dot" style="background:${bc};width:18px;height:18px" title="Border colour"
+                onclick="openColorPicker(this,'${bc}',v=>{pushUndo();cfg.datasets[${i}].borderColor=v;render()})"></span>
             </div>
           </div>`;
         }).join('');
@@ -3050,7 +3110,7 @@
     const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
 
     // Header — eye col + label col + data cols + delete col
-    head.innerHTML = `<th title="Show/hide row">👁</th>` +
+    head.innerHTML = `<th title="Show/hide row" style="width:22px"></th>` +
       `<th>${isArc ? 'Slice' : 'Label'}</th>` +
       cfg.datasets.map(ds => `<th>${escHtml(isArc ? 'Value' : ds.label)}</th>`).join('') +
       '<th></th>';
@@ -3058,9 +3118,12 @@
     // Rows
     body.innerHTML = cfg.labels.map((lbl, li) => {
       const hidden = (cfg.hiddenRows || [])[li];
+      const eyeIcon = hidden
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
       return `<tr class="${hidden ? 'tbl-row-hidden' : ''}">
         <td><button class="btn-eye${hidden ? ' hidden-row' : ''}" title="${hidden ? 'Show row' : 'Hide row'}"
-          onclick="toggleHideRow(${li})">${hidden ? '🚫' : '👁'}</button></td>
+          onclick="toggleHideRow(${li})">${eyeIcon}</button></td>
         <td><input class="tbl-input" value="${escHtml(lbl)}"
           onfocus="pushUndo()"
           oninput="cfg.labels[${li}]=this.value; buildColourSection(); render()" /></td>
@@ -3167,8 +3230,12 @@
     document.getElementById('tog-legend').checked  = cfg.options.showLegend !== false;
     document.getElementById('tog-grid').checked    = cfg.options.showGrid   !== false;
     document.getElementById('tog-hbar').checked    = !!cfg.horizontal;
+    document.getElementById('tog-stacked').checked = !!cfg.options.stacked;
     document.getElementById('tog-hbar-row').style.display  = cfg.type === 'bar' ? '' : 'none';
     document.getElementById('tog-grid-row').style.display  = isArc ? 'none' : '';
+    const barR = cfg.options.barBorderRadius || 0;
+    document.getElementById('bar-radius-slider').value       = barR;
+    document.getElementById('bar-radius-val').textContent    = barR + 'px';
     document.querySelectorAll('.type-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.type === cfg.type));
     const lpos = cfg.style.legend.position || 'top';
@@ -3199,7 +3266,6 @@
     // ── Style tab ─────────────────────────────────────────────
     const bg = cfg.options.canvasBg || '#ffffff';
     document.getElementById('canvas-bg-dot').style.background = bg;
-    document.getElementById('canvas-bg-input').value = bg;
 
     // ── Export tab ────────────────────────────────────────────
     const exp = cfg.exportOpts || {};
@@ -3539,6 +3605,141 @@ Rules:
       return parsed;
     };
   </script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CUSTOM COLOUR PICKER POPUP
+═══════════════════════════════════════════════════════════ -->
+<div id="cp-popup" class="cp-popup" style="display:none">
+  <div class="cp-presets-grid" id="cp-presets-grid"></div>
+  <div class="cp-recent-row" id="cp-recent-row" style="display:none">
+    <div class="cp-section-label">Recent</div>
+    <div class="cp-swatches-row" id="cp-recent-swatches"></div>
+  </div>
+  <div class="cp-hex-row">
+    <div class="cp-preview" id="cp-preview" onclick="document.getElementById('cp-native-input').click()"></div>
+    <input class="cp-hex-input" id="cp-hex-input" type="text" maxlength="7" spellcheck="false" placeholder="#000000"
+      oninput="_cpHexInput(this.value)" />
+    <button class="cp-wheel-btn" title="Open full colour wheel" onclick="document.getElementById('cp-native-input').click()">⊕</button>
+    <input type="color" class="cp-native-hidden" id="cp-native-input" oninput="_cpNativeInput(this.value)" />
+  </div>
+</div>
+
+<script>
+/* ── Custom colour picker ──────────────────────────────── */
+const CP_PRESETS = [
+  '#6366f1','#818cf8','#3b82f6','#06b6d4','#10b981','#22c55e','#a3e635','#fbbf24','#f97316',
+  '#ef4444','#ec4899','#8b5cf6','#f1f5f9','#cbd5e1','#94a3b8','#475569','#1e293b','#000000',
+];
+
+let _cpCallback = null;
+let _cpOutsideHandler = null;
+
+// Initialize presets grid (script is at end of body, so DOM is ready)
+document.getElementById('cp-presets-grid').innerHTML =
+  CP_PRESETS.map(c =>
+    `<span class="cp-swatch" style="background:${c}" title="${c}" onclick="_cpApply('${c}')"></span>`
+  ).join('');
+
+function openColorPicker(anchorEl, currentColor, callback) {
+  _cpCallback = callback;
+  const popup     = document.getElementById('cp-popup');
+  const hexInput  = document.getElementById('cp-hex-input');
+  const preview   = document.getElementById('cp-preview');
+  const native    = document.getElementById('cp-native-input');
+
+  const col = (currentColor && /^#[0-9a-fA-F]{6}$/i.test(currentColor))
+    ? currentColor : '#000000';
+  hexInput.value         = col.toUpperCase();
+  preview.style.background = col;
+  native.value           = col;
+
+  // Recent colours
+  _cpRefreshRecent();
+
+  // Show popup
+  popup.style.display = 'block';
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = popup.offsetWidth  || 202;
+  const ph = popup.offsetHeight || 180;
+  let left = rect.left;
+  let top  = rect.bottom + 6;
+  if (left + pw > window.innerWidth  - 8) left = window.innerWidth  - pw - 8;
+  if (top  + ph > window.innerHeight - 8) top  = rect.top - ph - 6;
+  if (top  < 4) top = 4;
+  if (left < 4) left = 4;
+  popup.style.left = left + 'px';
+  popup.style.top  = top  + 'px';
+
+  // Close on outside click
+  if (_cpOutsideHandler) document.removeEventListener('mousedown', _cpOutsideHandler);
+  _cpOutsideHandler = e => {
+    if (!popup.contains(e.target) && e.target !== anchorEl) closeColorPicker();
+  };
+  setTimeout(() => document.addEventListener('mousedown', _cpOutsideHandler), 10);
+}
+
+function closeColorPicker() {
+  document.getElementById('cp-popup').style.display = 'none';
+  if (_cpOutsideHandler) {
+    document.removeEventListener('mousedown', _cpOutsideHandler);
+    _cpOutsideHandler = null;
+  }
+}
+
+function _cpApply(color) {
+  const col = color.toUpperCase();
+  document.getElementById('cp-hex-input').value         = col;
+  document.getElementById('cp-preview').style.background = col;
+  document.getElementById('cp-native-input').value       = color;
+  if (_cpCallback) _cpCallback(color);
+  _cpSaveRecent(col);
+  closeColorPicker();
+}
+
+function _cpHexInput(val) {
+  let v = val.trim();
+  if (!v.startsWith('#')) v = '#' + v;
+  document.getElementById('cp-preview').style.background = v;
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+    document.getElementById('cp-native-input').value = v;
+    if (_cpCallback) _cpCallback(v);
+    _cpSaveRecent(v.toUpperCase());
+  }
+}
+
+function _cpNativeInput(color) {
+  const col = color.toUpperCase();
+  document.getElementById('cp-hex-input').value          = col;
+  document.getElementById('cp-preview').style.background = col;
+  if (_cpCallback) _cpCallback(color);
+  _cpSaveRecent(col);
+}
+
+function _cpSaveRecent(color) {
+  try {
+    let r = JSON.parse(localStorage.getItem('pt_recent_colors') || '[]');
+    r = [color, ...r.filter(c => c !== color)].slice(0, 9);
+    localStorage.setItem('pt_recent_colors', JSON.stringify(r));
+  } catch(e) {}
+  _cpRefreshRecent();
+}
+
+function _cpRefreshRecent() {
+  try {
+    const r = JSON.parse(localStorage.getItem('pt_recent_colors') || '[]');
+    const row = document.getElementById('cp-recent-row');
+    const sw  = document.getElementById('cp-recent-swatches');
+    if (r.length) {
+      sw.innerHTML = r.map(c =>
+        `<span class="cp-swatch" style="background:${c}" title="${c}" onclick="_cpApply('${c}')"></span>`
+      ).join('');
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  } catch(e) {}
+}
+</script>
 
 </body>
 </html>
