@@ -1038,8 +1038,8 @@
                 </div>
                 <div class="field-group" style="flex:0 0 auto">
                   <label class="field-label">Colour</label>
-                  <input type="color" class="tab-color" id="title-color" value="#0f172a"
-                    onfocus="pushUndo()" oninput="cfg.style.title.color=this.value;render()" />
+                  <span class="colour-dot lg bordered" id="title-color-dot" style="background:#0f172a"
+                    onclick="openColorPicker(this,cfg.style.title.color,v=>{pushUndo();cfg.style.title.color=v;this.style.background=v;render()})"></span>
                 </div>
                 <div class="field-group" style="flex:0 0 auto">
                   <label class="field-label">Bold</label>
@@ -1060,8 +1060,8 @@
                 </div>
                 <div class="field-group" style="flex:0 0 auto">
                   <label class="field-label">Colour</label>
-                  <input type="color" class="tab-color" id="subtitle-color" value="#64748b"
-                    onfocus="pushUndo()" oninput="cfg.style.subtitle.color=this.value;render()" />
+                  <span class="colour-dot lg bordered" id="subtitle-color-dot" style="background:#64748b"
+                    onclick="openColorPicker(this,cfg.style.subtitle.color,v=>{pushUndo();cfg.style.subtitle.color=v;this.style.background=v;render()})"></span>
                 </div>
               </div>
             </div>
@@ -1078,8 +1078,8 @@
                   </div>
                   <div class="field-group" style="flex:0 0 auto">
                     <label class="field-label">Colour</label>
-                    <input type="color" class="tab-color" id="xlabel-color" value="#475569"
-                      onfocus="pushUndo()" oninput="cfg.style.xlabel.color=this.value;render()" />
+                    <span class="colour-dot lg bordered" id="xlabel-color-dot" style="background:#475569"
+                      onclick="openColorPicker(this,cfg.style.xlabel.color,v=>{pushUndo();cfg.style.xlabel.color=v;this.style.background=v;render()})"></span>
                   </div>
                 </div>
               </div>
@@ -1095,8 +1095,8 @@
                   </div>
                   <div class="field-group" style="flex:0 0 auto">
                     <label class="field-label">Colour</label>
-                    <input type="color" class="tab-color" id="ylabel-color" value="#475569"
-                      onfocus="pushUndo()" oninput="cfg.style.ylabel.color=this.value;render()" />
+                    <span class="colour-dot lg bordered" id="ylabel-color-dot" style="background:#475569"
+                      onclick="openColorPicker(this,cfg.style.ylabel.color,v=>{pushUndo();cfg.style.ylabel.color=v;this.style.background=v;render()})"></span>
                   </div>
                 </div>
               </div>
@@ -1110,8 +1110,8 @@
                   </div>
                   <div class="field-group" style="flex:0 0 auto">
                     <label class="field-label">Colour</label>
-                    <input type="color" class="tab-color" id="xtick-color" value="#475569"
-                      onfocus="pushUndo()" oninput="cfg.style.xticks.color=this.value;render()" />
+                    <span class="colour-dot lg bordered" id="xtick-color-dot" style="background:#475569"
+                      onclick="openColorPicker(this,cfg.style.xticks.color,v=>{pushUndo();cfg.style.xticks.color=v;this.style.background=v;render()})"></span>
                   </div>
                 </div>
                 <div class="field-group" style="margin-top:4px">
@@ -1140,8 +1140,8 @@
                   </div>
                   <div class="field-group" style="flex:0 0 auto">
                     <label class="field-label">Colour</label>
-                    <input type="color" class="tab-color" id="ytick-color" value="#475569"
-                      onfocus="pushUndo()" oninput="cfg.style.yticks.color=this.value;render()" />
+                    <span class="colour-dot lg bordered" id="ytick-color-dot" style="background:#475569"
+                      onclick="openColorPicker(this,cfg.style.yticks.color,v=>{pushUndo();cfg.style.yticks.color=v;this.style.background=v;render()})"></span>
                   </div>
                 </div>
               </div>
@@ -1168,8 +1168,8 @@
                   </div>
                   <div class="field-group" style="flex:0 0 auto">
                     <label class="field-label">Colour</label>
-                    <input type="color" class="tab-color" id="dlabel-color" value="#333333"
-                      onfocus="pushUndo()" oninput="cfg.options.dataLabelColor=this.value;render()" />
+                    <span class="colour-dot lg bordered" id="dlabel-color-dot" style="background:#333333"
+                      onclick="openColorPicker(this,cfg.options.dataLabelColor||'#333333',v=>{pushUndo();cfg.options.dataLabelColor=v;this.style.background=v;render()})"></span>
                   </div>
                 </div>
                 <div class="field-group" id="dlabel-pos-group" style="margin-top:6px">
@@ -1227,8 +1227,8 @@
                 </div>
                 <div class="field-group" style="flex:0 0 auto">
                   <label class="field-label">Colour</label>
-                  <input type="color" class="tab-color" id="legend-color" value="#1e293b"
-                    onfocus="pushUndo()" oninput="cfg.style.legend.color=this.value;render()" />
+                  <span class="colour-dot lg bordered" id="legend-color-dot" style="background:#1e293b"
+                    onclick="openColorPicker(this,cfg.style.legend.color,v=>{pushUndo();cfg.style.legend.color=v;this.style.background=v;render()})"></span>
                 </div>
               </div>
             </div>
@@ -2851,9 +2851,10 @@
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="64" value="${s.title.fontSize}"
               onfocus="pushUndo()" oninput="cfg.style.title.fontSize=+this.value;render()" /></div>
-          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${s.title.color}"
-              onfocus="pushUndo()" oninput="cfg.style.title.color=this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Colour</span>
+            <span class="colour-dot lg bordered" style="background:${s.title.color}"
+              onclick="openColorPicker(this,'${s.title.color}',v=>{pushUndo();cfg.style.title.color=v;this.style.background=v;const d=document.getElementById('title-color-dot');if(d)d.style.background=v;render()})"
+              title="${s.title.color}"></span></div>
         </div>
         <div class="insp-field"><span class="insp-label">Font</span>
           <select class="insp-select" onchange="pushUndo();cfg.style.title.fontFamily=this.value;render()">${
@@ -2884,9 +2885,10 @@
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="40" value="${st.fontSize}"
               onfocus="pushUndo()" oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
-          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${st.color}"
-              onfocus="pushUndo()" oninput="cfg.style.${key}.color=this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Colour</span>
+            <span class="colour-dot lg bordered" style="background:${st.color}"
+              onclick="openColorPicker(this,'${st.color}',v=>{pushUndo();cfg.style.${key}.color=v;this.style.background=v;const d=document.getElementById('${key}-color-dot');if(d)d.style.background=v;render()})"
+              title="${st.color}"></span></div>
         </div>
         ${st.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
           onclick="pushUndo();cfg.style.${key}.x=null;cfg.style.${key}.y=null;render();selectZone({type:'${key}'},null)">
@@ -2898,14 +2900,16 @@
 
     if (zone.type === 'xticks' || zone.type === 'yticks') {
       const key = zone.type, st = s[key];
+      const tickDotId = key === 'xticks' ? 'xtick-color-dot' : 'ytick-color-dot';
       return `
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="6" max="32" value="${st.fontSize}"
               onfocus="pushUndo()" oninput="cfg.style.${key}.fontSize=+this.value;render()" /></div>
-          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${st.color}"
-              onfocus="pushUndo()" oninput="cfg.style.${key}.color=this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Colour</span>
+            <span class="colour-dot lg bordered" style="background:${st.color}"
+              onclick="openColorPicker(this,'${st.color}',v=>{pushUndo();cfg.style.${key}.color=v;this.style.background=v;const d=document.getElementById('${tickDotId}');if(d)d.style.background=v;render()})"
+              title="${st.color}"></span></div>
         </div>
         <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
           onclick="resetElementStyle('${key}')">↺ Reset style to defaults</button></div>`;
@@ -2923,9 +2927,10 @@
           <div class="insp-field"><span class="insp-label">Size</span>
             <input class="insp-input" type="number" min="8" max="32" value="${s.legend.fontSize}"
               onfocus="pushUndo()" oninput="cfg.style.legend.fontSize=+this.value;render()" /></div>
-          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${s.legend.color}"
-              onfocus="pushUndo()" oninput="cfg.style.legend.color=this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Colour</span>
+            <span class="colour-dot lg bordered" style="background:${s.legend.color}"
+              onclick="openColorPicker(this,'${s.legend.color}',v=>{pushUndo();cfg.style.legend.color=v;this.style.background=v;const d=document.getElementById('legend-color-dot');if(d)d.style.background=v;render()})"
+              title="${s.legend.color}"></span></div>
         </div>
         ${s.legend.x != null ? `<div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px"
           onclick="pushUndo();cfg.style.legend.x=null;cfg.style.legend.y=null;render();selectZone({type:'legend'},null)">
@@ -3367,19 +3372,19 @@
     document.getElementById('input-subtitle').value      = cfg.subtitle || '';
     document.getElementById('input-xlabel').value        = cfg.xAxisLabel || '';
     document.getElementById('input-ylabel').value        = cfg.yAxisLabel || '';
-    document.getElementById('title-font-size').value     = cfg.style.title.fontSize;
-    document.getElementById('title-color').value         = cfg.style.title.color;
-    document.getElementById('title-bold').checked        = cfg.style.title.fontWeight === '700';
-    document.getElementById('subtitle-font-size').value  = cfg.style.subtitle?.fontSize || 13;
-    document.getElementById('subtitle-color').value      = cfg.style.subtitle?.color || '#64748b';
-    document.getElementById('xlabel-font-size').value    = cfg.style.xlabel.fontSize;
-    document.getElementById('xlabel-color').value        = cfg.style.xlabel.color;
-    document.getElementById('ylabel-font-size').value    = cfg.style.ylabel.fontSize;
-    document.getElementById('ylabel-color').value        = cfg.style.ylabel.color;
-    document.getElementById('xtick-font-size').value     = cfg.style.xticks.fontSize;
-    document.getElementById('xtick-color').value         = cfg.style.xticks.color;
-    document.getElementById('ytick-font-size').value     = cfg.style.yticks.fontSize;
-    document.getElementById('ytick-color').value         = cfg.style.yticks.color;
+    document.getElementById('title-font-size').value              = cfg.style.title.fontSize;
+    document.getElementById('title-color-dot').style.background   = cfg.style.title.color;
+    document.getElementById('title-bold').checked                 = cfg.style.title.fontWeight === '700';
+    document.getElementById('subtitle-font-size').value           = cfg.style.subtitle?.fontSize || 13;
+    document.getElementById('subtitle-color-dot').style.background = cfg.style.subtitle?.color || '#64748b';
+    document.getElementById('xlabel-font-size').value             = cfg.style.xlabel.fontSize;
+    document.getElementById('xlabel-color-dot').style.background  = cfg.style.xlabel.color;
+    document.getElementById('ylabel-font-size').value             = cfg.style.ylabel.fontSize;
+    document.getElementById('ylabel-color-dot').style.background  = cfg.style.ylabel.color;
+    document.getElementById('xtick-font-size').value              = cfg.style.xticks.fontSize;
+    document.getElementById('xtick-color-dot').style.background   = cfg.style.xticks.color;
+    document.getElementById('ytick-font-size').value              = cfg.style.yticks.fontSize;
+    document.getElementById('ytick-color-dot').style.background   = cfg.style.yticks.color;
     const angle = cfg.options.xTickAngle ?? 0;
     document.getElementById('xtick-angle-slider').value  = angle;
     document.getElementById('xtick-angle-val').textContent = angle + '°';
@@ -3406,8 +3411,8 @@
     if (cfg.options.figHeight) document.getElementById('fig-height').value = cfg.options.figHeight;
 
     // ── Values tab ────────────────────────────────────────────
-    document.getElementById('tog-dlabels').checked        = !!cfg.options.showDataLabels;
-    document.getElementById('dlabel-color').value         = cfg.options.dataLabelColor || '#333333';
+    document.getElementById('tog-dlabels').checked                  = !!cfg.options.showDataLabels;
+    document.getElementById('dlabel-color-dot').style.background    = cfg.options.dataLabelColor || '#333333';
     document.getElementById('dlabel-font-size').value     = cfg.style.dataLabels?.fontSize || 11;
     const vlpos = cfg.options.valueLabelPos || 'top';
     document.querySelectorAll('#dlabel-pos-btns .seg-btn').forEach(b =>
@@ -3420,8 +3425,8 @@
     document.getElementById('y-axis-min').value            = cfg.options.yAxisMin ?? '';
     document.getElementById('y-axis-max').value            = cfg.options.yAxisMax ?? '';
     document.getElementById('legend-title-input').value    = cfg.options.legendTitle || '';
-    document.getElementById('legend-font-size').value      = cfg.style.legend.fontSize;
-    document.getElementById('legend-color').value          = cfg.style.legend.color;
+    document.getElementById('legend-font-size').value               = cfg.style.legend.fontSize;
+    document.getElementById('legend-color-dot').style.background    = cfg.style.legend.color;
     document.getElementById('series-section').style.display = isArc ? 'none' : '';
 
     // ── Style tab ─────────────────────────────────────────────
