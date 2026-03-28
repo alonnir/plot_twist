@@ -638,10 +638,30 @@
       cursor: pointer; padding: 0 0 0 8px; flex-shrink: 0;
     }
     .tt-close:hover { color: #f1f5f9; }
-    .tt-row    { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
-    .tt-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; display: inline-block; }
-    .tt-label  { color: #94a3b8; }
-    .tt-val    { color: #f1f5f9; font-weight: 500; margin-left: auto; padding-left: 10px; }
+    .tt-row    { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+    .tt-swatch {
+      width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; display: inline-block;
+      border: 1.5px solid rgba(255,255,255,.15);
+    }
+    .tt-swatch.editable {
+      cursor: pointer; transition: transform .1s, border-color .1s;
+    }
+    .tt-swatch.editable:hover { transform: scale(1.3); border-color: rgba(255,255,255,.55); }
+    .tt-label  { color: #94a3b8; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tt-val-input {
+      color: #f1f5f9; font-weight: 500; margin-left: auto;
+      background: rgba(255,255,255,.06); border: 1px solid transparent;
+      border-radius: 4px; outline: none; padding: 2px 5px;
+      width: 56px; text-align: right; font-size: 12px;
+      font-family: 'Space Grotesk', sans-serif; cursor: text;
+      transition: border-color .15s, background .15s;
+    }
+    .tt-val-input:hover  { border-color: #334155; }
+    .tt-val-input:focus  { border-color: #6366f1; background: rgba(99,102,241,.12); }
+    /* hide spin arrows */
+    .tt-val-input::-webkit-outer-spin-button,
+    .tt-val-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .tt-val-input[type=number] { -moz-appearance: textfield; }
     .tt-hint   {
       color: #334155; font-size: 10px;
       margin-top: 6px; border-top: 1px solid #1e293b;
@@ -1896,9 +1916,11 @@
       el.className = 'tooltip-float';
       document.body.appendChild(el);
 
-      // Drag: mousedown anywhere on tooltip except × button
+      // Drag: mousedown anywhere on tooltip except interactive elements
       el.addEventListener('mousedown', e => {
-        if (e.target.closest('.tt-close')) return;
+        if (e.target.closest('.tt-close') ||
+            e.target.closest('.tt-swatch.editable') ||
+            e.target.closest('.tt-val-input')) return;
         tooltipDragging = true;
         tooltipDragSX   = e.clientX;
         tooltipDragSY   = e.clientY;
@@ -1917,27 +1939,46 @@
   function showTooltip(chartX, chartY, dataIndex) {
     const el = getTooltipEl();
     const label = cfg.labels[dataIndex] ?? '';
+    const isBar = cfg.type === 'bar';
+    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
 
     // Build rows for every dataset
     let rows = '';
-    cfg.datasets.forEach(ds => {
+    cfg.datasets.forEach((ds, di) => {
       const color = (ds.colors ?? [])[dataIndex] ?? ds.color ?? '#6366f1';
       const value = ds.data[dataIndex];
       if (value === undefined || value === null || value === '') return;
+
+      // Colour swatch — clickable for bar and arc charts
+      let swatchOnClick = '';
+      if (isBar) {
+        swatchOnClick = `onclick="openColorPicker(this,'${color}',v=>{setSeriesColor(${di},v)})" title="Change colour (all bars)"`;
+      } else if (isArc) {
+        swatchOnClick = `onclick="openColorPicker(this,'${color}',v=>{setSliceColor(${dataIndex},v)})" title="Change slice colour"`;
+      }
+      const swatchClass = `tt-swatch${(isBar || isArc) ? ' editable' : ''}`;
+
       rows += `<div class="tt-row">
-        <span class="tt-swatch" style="background:${color}"></span>
-        <span class="tt-label">${ds.label}</span>
-        <span class="tt-val">${value}</span>
+        <span class="${swatchClass}" style="background:${color}" ${swatchOnClick}></span>
+        <span class="tt-label">${escHtml(ds.label)}</span>
+        <input class="tt-val-input" type="number" value="${value}"
+          title="Edit value"
+          onfocus="pushUndo()"
+          oninput="cfg.datasets[${di}].data[${dataIndex}]=this.value===''?null:+this.value;render()" />
       </div>`;
     });
 
+    const hint = isBar
+      ? '● colour applies to all bars &nbsp;·&nbsp; drag to move'
+      : 'drag to move';
+
     el.innerHTML = `
       <div class="tt-header">
-        ${label ? `<span class="tt-title">${label}</span>` : ''}
+        ${label ? `<span class="tt-title">${escHtml(label)}</span>` : ''}
         <button class="tt-close" onclick="closeTooltip()">×</button>
       </div>
       ${rows}
-      <div class="tt-hint">drag to move</div>`;
+      <div class="tt-hint">${hint}</div>`;
     el.style.cursor  = 'grab';
     el.style.display = 'block';
 
