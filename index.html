@@ -253,15 +253,47 @@
       flex: 1; overflow: hidden;
       border-radius: var(--r-lg);
       box-shadow: 0 8px 40px rgba(0,0,0,.5);
+      display: flex; /* always flex so compare pane slots in */
     }
     #canvas-wrapper {
-      width: 100%; height: 100%;
+      flex: 1; height: 100%;
       display: flex; align-items: center; justify-content: center;
       padding: 24px;
       transition: background .2s;
       position: relative;
+      min-width: 0;
     }
     #chart-canvas { max-width: 100%; max-height: 100%; }
+
+    /* ── Compare mode ── */
+    #compare-pane {
+      display: none; flex: 1; min-width: 0;
+      border-right: 2px solid var(--indigo);
+      position: relative; overflow: hidden;
+      align-items: center; justify-content: center;
+      background: var(--bg-panel);
+    }
+    #compare-pane.visible { display: flex; }
+    .compare-label {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+      color: var(--text-dim); background: rgba(0,0,0,.35); padding: 3px 10px;
+      border-radius: 20px; pointer-events: none; white-space: nowrap;
+    }
+    #compare-img {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      padding: 24px;
+    }
+    #canvas-wrapper .compare-label { border-right: none; }
+    .btn-compare {
+      padding: 6px 12px; font-size: 12px; font-weight: 600;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border-lt); border-radius: var(--r);
+      cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 5px;
+    }
+    .btn-compare:hover:not(:disabled) { border-color: var(--indigo); color: var(--indigo-lt); }
+    .btn-compare.active { background: var(--indigo-bg); border-color: var(--indigo); color: var(--indigo-lt); }
+    .btn-compare:disabled { opacity: .3; cursor: not-allowed; }
 
     /* ── Inspector overlay ── */
     #overlay-canvas {
@@ -811,6 +843,10 @@
         <div class="stage-header">
           <div class="panel-heading">Preview</div>
           <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn-compare" id="btn-compare" onclick="toggleCompare()" disabled title="Compare original vs redrawn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>
+              Compare
+            </button>
             <button class="btn-undo-redo" id="btn-undo" onclick="doUndo()" disabled title="Undo (Ctrl+Z)">↩</button>
             <button class="btn-undo-redo" id="btn-redo" onclick="doRedo()" disabled title="Redo (Ctrl+Y)">↪</button>
             <button class="btn-download" id="btn-download" onclick="downloadChart()">
@@ -818,8 +854,14 @@
             </button>
           </div>
         </div>
-        <div class="stage-body">
+        <div class="stage-body" id="stage-body">
+          <!-- Compare pane: original uploaded image -->
+          <div id="compare-pane">
+            <span class="compare-label">Original</span>
+            <img id="compare-img" src="" alt="Original chart" />
+          </div>
           <div id="canvas-wrapper">
+            <span class="compare-label" id="redrawn-label" style="display:none">Redrawn</span>
             <canvas id="chart-canvas"></canvas>
             <canvas id="overlay-canvas" ondragstart="return false"></canvas>
             <div id="inspector">
@@ -1255,6 +1297,8 @@
   let activeTab = 'data';
   let undoStack = [];
   let redoStack = [];
+  let uploadedSrc  = null;       // data URL of the last uploaded image
+  let compareMode  = false;      // whether comparison view is active
   const MAX_UNDO = 50;
 
   function defaultCfg() {
@@ -1422,6 +1466,11 @@
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
       document.getElementById('dz-thumb').src = dataUrl;
+
+      // Store for comparison view
+      uploadedSrc = dataUrl;
+      document.getElementById('compare-img').src = dataUrl;
+      document.getElementById('btn-compare').disabled = false;
 
       const base64 = dataUrl.split(',')[1];
       const mime   = file.type;
@@ -3087,6 +3136,22 @@
   }
 
   /* ─────────────────────────────────────────────
+     COMPARE MODE
+  ───────────────────────────────────────────── */
+  function toggleCompare() {
+    if (!uploadedSrc) return;
+    compareMode = !compareMode;
+    const btn        = document.getElementById('btn-compare');
+    const pane       = document.getElementById('compare-pane');
+    const lbl        = document.getElementById('redrawn-label');
+    btn.classList.toggle('active', compareMode);
+    pane.classList.toggle('visible', compareMode);
+    lbl.style.display = compareMode ? '' : 'none';
+    // Re-render so canvas sizes correctly within the narrowed wrapper
+    setTimeout(() => render(), 50);
+  }
+
+  /* ─────────────────────────────────────────────
      EDIT PANEL — DATA
   ───────────────────────────────────────────── */
   function buildSeriesInputs() {
@@ -3287,6 +3352,15 @@
     closeTooltip();
     setDzState('empty');
     setUploadMsg('', '');
+    // Clear compare state
+    uploadedSrc = null;
+    if (compareMode) {
+      compareMode = false;
+      document.getElementById('btn-compare').classList.remove('active');
+      document.getElementById('compare-pane').classList.remove('visible');
+      document.getElementById('redrawn-label').style.display = 'none';
+    }
+    document.getElementById('btn-compare').disabled = true;
     render();
     refreshEditUI();
   }
