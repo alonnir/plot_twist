@@ -580,6 +580,68 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    /* ── Scrollable tab bar (6 tabs) ─────────────────────────── */
+    .edit-tabs { overflow-x: auto; scrollbar-width: none; }
+    .edit-tabs::-webkit-scrollbar { display: none; }
+    .edit-tab { padding: 9px 11px; font-size: 12px; white-space: nowrap; }
+
+    /* ── Segmented button group ───────────────────────────────── */
+    .seg-btns { display: flex; border-radius: var(--r); overflow: hidden; border: 1px solid var(--border-lt); }
+    .seg-btn {
+      flex: 1; padding: 6px 4px; font-size: 11px; font-weight: 500;
+      background: var(--bg-card); color: var(--text-muted); border: none;
+      border-right: 1px solid var(--border-lt); transition: all .15s; cursor: pointer;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover { background: var(--bg-input); color: var(--text); }
+    .seg-btn.active { background: var(--indigo-bg); color: var(--indigo); font-weight: 600; }
+
+    /* ── Style row (size + colour side by side) ───────────────── */
+    .style-row { display: flex; gap: 8px; align-items: flex-end; }
+    .style-row .field-group { flex: 1; }
+
+    /* ── Angle slider ─────────────────────────────────────────── */
+    .angle-presets { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+    .angle-btn {
+      flex: 1; min-width: 36px; padding: 4px 2px; font-size: 10px; font-weight: 500;
+      background: var(--bg-card); color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: var(--r);
+      cursor: pointer; transition: all .15s;
+    }
+    .angle-btn:hover { border-color: var(--border-lt); color: var(--text); }
+    .angle-btn.active { border-color: var(--indigo-dk); background: var(--indigo-bg); color: var(--indigo); }
+    .slider-row { display: flex; align-items: center; gap: 8px; }
+    .angle-slider { flex: 1; accent-color: var(--indigo); }
+    .slider-val { font-size: 12px; color: var(--text-muted); min-width: 30px; text-align: right; }
+
+    /* ── Figure size row ──────────────────────────────────────── */
+    .size-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .size-row .field-input { flex: 1; min-width: 0; }
+    .size-x, .size-unit { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
+
+    /* ── Per-series gradient / border controls ────────────────── */
+    .series-style-row { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+    .series-style-label { font-size: 10px; color: var(--text-dim); }
+    .series-style-input { width: 44px; padding: 4px 5px; font-size: 11px; background: var(--bg-input); border: 1px solid var(--border-lt); border-radius: 4px; color: var(--text); }
+
+    /* ── Hidden row in data table ─────────────────────────────── */
+    .tbl-row-hidden td { opacity: .35; }
+    .btn-eye { background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; color: var(--text-dim); }
+    .btn-eye:hover { color: var(--text); }
+    .btn-eye.hidden-row { color: var(--text-dim); opacity: .5; }
+
+    /* ── Export big button ────────────────────────────────────── */
+    .btn-export-big {
+      width: 100%; padding: 12px; font-size: 14px; font-weight: 600;
+      background: var(--indigo-dk); color: #fff;
+      border: none; border-radius: var(--r);
+      transition: background .15s, transform .1s;
+    }
+    .btn-export-big:hover { background: #4f46e5; transform: translateY(-1px); }
+
+    /* ── Insp color in tab panels ─────────────────────────────── */
+    .tab-color { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border-lt); cursor: pointer; padding: 0; }
   </style>
 </head>
 <body>
@@ -728,17 +790,50 @@
 
       <!-- ── RIGHT: Edit panel ── -->
       <aside class="edit-sidebar">
-        <div class="edit-sidebar-heading">Edit</div>
         <div class="edit-tabs" id="edit-tabs">
-          <button class="edit-tab active" data-tab="style" onclick="switchTab('style')">Style</button>
-          <button class="edit-tab" data-tab="data" onclick="switchTab('data')">Data</button>
-          <button class="edit-tab" data-tab="display" onclick="switchTab('display')">Display</button>
+          <button class="edit-tab active" data-tab="data"   onclick="switchTab('data')">Data</button>
+          <button class="edit-tab" data-tab="layout"  onclick="switchTab('layout')">Layout</button>
+          <button class="edit-tab" data-tab="titles"  onclick="switchTab('titles')">Titles</button>
+          <button class="edit-tab" data-tab="values"  onclick="switchTab('values')">Values</button>
+          <button class="edit-tab" data-tab="style"   onclick="switchTab('style')">Style</button>
+          <button class="edit-tab" data-tab="export"  onclick="switchTab('export')">Export</button>
         </div>
 
-        <!-- STYLE TAB -->
-        <div class="edit-body" id="tab-style">
+        <!-- ══ DATA TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-data">
           <div class="edit-sections">
-            <!-- Chart type -->
+            <div class="edit-section" id="series-section">
+              <div class="edit-section-hdr">
+                <div class="edit-section-title">Series</div>
+                <button class="btn-sm" onclick="pushUndo();addSeries()">+ Add</button>
+              </div>
+              <div id="series-inputs"></div>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-hdr">
+                <div class="edit-section-title">Data Points</div>
+                <div style="display:flex;gap:5px">
+                  <button class="btn-sm" onclick="addDataRow()">+ Row</button>
+                  <button class="btn-sm" onclick="pushUndo();addSeries()" title="Add series column">+ Col</button>
+                </div>
+              </div>
+              <div class="data-table-wrap">
+                <table class="data-table" id="data-table">
+                  <thead><tr id="table-head"></tr></thead>
+                  <tbody id="table-body"></tbody>
+                </table>
+              </div>
+              <div class="data-toolbar">
+                <button class="btn-data-action" onclick="downloadDataCSV()">⬇ CSV</button>
+                <button class="btn-data-action" id="btn-copy-data" onclick="copyDataToClipboard()">📋 Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ LAYOUT TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-layout" style="display:none">
+          <div class="edit-sections">
             <div class="edit-section">
               <div class="edit-section-title">Chart Type</div>
               <div class="type-grid" id="type-grid">
@@ -765,15 +860,270 @@
                 </button>
               </div>
             </div>
-
-            <!-- Series colours -->
-            <div class="edit-section" id="colour-section"></div>
-
-            <!-- Canvas background -->
+            <div class="edit-section" id="tog-hbar-row" style="display:none">
+              <label class="toggle-row">
+                <span>Horizontal Bars</span>
+                <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="pushUndo();cfg.horizontal=this.checked;render()" />
+              </label>
+            </div>
             <div class="edit-section">
-              <div class="edit-section-title">Canvas Background</div>
+              <div class="edit-section-title">Figure Size</div>
+              <div class="size-row">
+                <input class="field-input" type="number" id="fig-width" placeholder="Auto" min="200" max="3000" />
+                <span class="size-x">×</span>
+                <input class="field-input" type="number" id="fig-height" placeholder="Auto" min="150" max="3000" />
+                <span class="size-unit">px</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn-sm" style="flex:1" onclick="applyFigSize()">Apply</button>
+                <button class="btn-sm" style="flex:1;opacity:.7" onclick="clearFigSize()">↺ Auto</button>
+              </div>
+            </div>
+            <div class="edit-section" id="tog-grid-row">
+              <label class="toggle-row">
+                <span>Show Grid Lines</span>
+                <input type="checkbox" class="toggle-cb" id="tog-grid" checked onchange="pushUndo();cfg.options.showGrid=this.checked;render()" />
+              </label>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-title">Legend</div>
+              <label class="toggle-row">
+                <span>Show Legend</span>
+                <input type="checkbox" class="toggle-cb" id="tog-legend" checked onchange="pushUndo();cfg.options.showLegend=this.checked;render()" />
+              </label>
+              <div class="field-group" style="margin-top:6px">
+                <label class="field-label">Position</label>
+                <div class="seg-btns" id="legend-pos-btns">
+                  <button class="seg-btn active" data-val="top"    onclick="setLegendPos('top')">Top</button>
+                  <button class="seg-btn"         data-val="bottom" onclick="setLegendPos('bottom')">Bottom</button>
+                  <button class="seg-btn"         data-val="left"   onclick="setLegendPos('left')">Left</button>
+                  <button class="seg-btn"         data-val="right"  onclick="setLegendPos('right')">Right</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ TITLES TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-titles" style="display:none">
+          <div class="edit-sections">
+            <div class="edit-section">
+              <div class="edit-section-title">Chart Title</div>
+              <input class="field-input" id="input-title" type="text" placeholder="e.g. Monthly Revenue"
+                onfocus="pushUndo()" oninput="cfg.title=this.value;render()" />
+              <div class="style-row">
+                <div class="field-group" style="flex:1">
+                  <label class="field-label">Size</label>
+                  <input class="field-input" type="number" id="title-font-size" min="8" max="72" value="18"
+                    onfocus="pushUndo()" oninput="cfg.style.title.fontSize=+this.value;render()" />
+                </div>
+                <div class="field-group" style="flex:0 0 auto">
+                  <label class="field-label">Colour</label>
+                  <input type="color" class="tab-color" id="title-color" value="#0f172a"
+                    onfocus="pushUndo()" oninput="cfg.style.title.color=this.value;render()" />
+                </div>
+                <div class="field-group" style="flex:0 0 auto">
+                  <label class="field-label">Bold</label>
+                  <input type="checkbox" class="toggle-cb" id="title-bold" style="margin-top:5px"
+                    onchange="pushUndo();cfg.style.title.fontWeight=this.checked?'700':'400';render()" />
+                </div>
+              </div>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-title">Subtitle</div>
+              <input class="field-input" id="input-subtitle" type="text" placeholder="Optional subtitle"
+                onfocus="pushUndo()" oninput="cfg.subtitle=this.value;render()" />
+              <div class="style-row">
+                <div class="field-group" style="flex:1">
+                  <label class="field-label">Size</label>
+                  <input class="field-input" type="number" id="subtitle-font-size" min="8" max="40" value="13"
+                    onfocus="pushUndo()" oninput="cfg.style.subtitle.fontSize=+this.value;render()" />
+                </div>
+                <div class="field-group" style="flex:0 0 auto">
+                  <label class="field-label">Colour</label>
+                  <input type="color" class="tab-color" id="subtitle-color" value="#64748b"
+                    onfocus="pushUndo()" oninput="cfg.style.subtitle.color=this.value;render()" />
+                </div>
+              </div>
+            </div>
+            <div id="axis-label-fields">
+              <div class="edit-section">
+                <div class="edit-section-title">X-Axis Label</div>
+                <input class="field-input" id="input-xlabel" type="text" placeholder="e.g. Month"
+                  onfocus="pushUndo()" oninput="cfg.xAxisLabel=this.value;render()" />
+                <div class="style-row">
+                  <div class="field-group" style="flex:1">
+                    <label class="field-label">Size</label>
+                    <input class="field-input" type="number" id="xlabel-font-size" min="8" max="30" value="13"
+                      onfocus="pushUndo()" oninput="cfg.style.xlabel.fontSize=+this.value;render()" />
+                  </div>
+                  <div class="field-group" style="flex:0 0 auto">
+                    <label class="field-label">Colour</label>
+                    <input type="color" class="tab-color" id="xlabel-color" value="#475569"
+                      onfocus="pushUndo()" oninput="cfg.style.xlabel.color=this.value;render()" />
+                  </div>
+                </div>
+              </div>
+              <div class="edit-section">
+                <div class="edit-section-title">Y-Axis Label</div>
+                <input class="field-input" id="input-ylabel" type="text" placeholder="e.g. Revenue (£)"
+                  onfocus="pushUndo()" oninput="cfg.yAxisLabel=this.value;render()" />
+                <div class="style-row">
+                  <div class="field-group" style="flex:1">
+                    <label class="field-label">Size</label>
+                    <input class="field-input" type="number" id="ylabel-font-size" min="8" max="30" value="13"
+                      onfocus="pushUndo()" oninput="cfg.style.ylabel.fontSize=+this.value;render()" />
+                  </div>
+                  <div class="field-group" style="flex:0 0 auto">
+                    <label class="field-label">Colour</label>
+                    <input type="color" class="tab-color" id="ylabel-color" value="#475569"
+                      onfocus="pushUndo()" oninput="cfg.style.ylabel.color=this.value;render()" />
+                  </div>
+                </div>
+              </div>
+              <div class="edit-section">
+                <div class="edit-section-title">X Tick Labels</div>
+                <div class="style-row">
+                  <div class="field-group" style="flex:1">
+                    <label class="field-label">Size</label>
+                    <input class="field-input" type="number" id="xtick-font-size" min="6" max="24" value="12"
+                      onfocus="pushUndo()" oninput="cfg.style.xticks.fontSize=+this.value;render()" />
+                  </div>
+                  <div class="field-group" style="flex:0 0 auto">
+                    <label class="field-label">Colour</label>
+                    <input type="color" class="tab-color" id="xtick-color" value="#475569"
+                      onfocus="pushUndo()" oninput="cfg.style.xticks.color=this.value;render()" />
+                  </div>
+                </div>
+                <div class="field-group" style="margin-top:4px">
+                  <label class="field-label">Label Angle</label>
+                  <div class="angle-presets">
+                    <button class="angle-btn" onclick="setTickAngle(-90)">-90°</button>
+                    <button class="angle-btn" onclick="setTickAngle(-45)">-45°</button>
+                    <button class="angle-btn active" onclick="setTickAngle(0)">0°</button>
+                    <button class="angle-btn" onclick="setTickAngle(45)">45°</button>
+                    <button class="angle-btn" onclick="setTickAngle(90)">90°</button>
+                  </div>
+                  <div class="slider-row">
+                    <input type="range" class="angle-slider" id="xtick-angle-slider" min="-90" max="90" step="1" value="0"
+                      oninput="setTickAngle(+this.value)" />
+                    <span class="slider-val" id="xtick-angle-val">0°</span>
+                  </div>
+                </div>
+              </div>
+              <div class="edit-section">
+                <div class="edit-section-title">Y Tick Labels</div>
+                <div class="style-row">
+                  <div class="field-group" style="flex:1">
+                    <label class="field-label">Size</label>
+                    <input class="field-input" type="number" id="ytick-font-size" min="6" max="24" value="12"
+                      onfocus="pushUndo()" oninput="cfg.style.yticks.fontSize=+this.value;render()" />
+                  </div>
+                  <div class="field-group" style="flex:0 0 auto">
+                    <label class="field-label">Colour</label>
+                    <input type="color" class="tab-color" id="ytick-color" value="#475569"
+                      onfocus="pushUndo()" oninput="cfg.style.yticks.color=this.value;render()" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ VALUES TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-values" style="display:none">
+          <div class="edit-sections">
+            <div class="edit-section">
+              <div class="edit-section-title">Data Labels</div>
+              <label class="toggle-row">
+                <span>Show Values</span>
+                <input type="checkbox" class="toggle-cb" id="tog-dlabels"
+                  onchange="pushUndo();cfg.options.showDataLabels=this.checked;render()" />
+              </label>
+              <div id="dlabels-options" style="margin-top:6px">
+                <div class="style-row">
+                  <div class="field-group" style="flex:1">
+                    <label class="field-label">Size</label>
+                    <input class="field-input" type="number" id="dlabel-font-size" min="6" max="30" value="11"
+                      onfocus="pushUndo()" oninput="cfg.style.dataLabels=cfg.style.dataLabels||{};cfg.style.dataLabels.fontSize=+this.value;render()" />
+                  </div>
+                  <div class="field-group" style="flex:0 0 auto">
+                    <label class="field-label">Colour</label>
+                    <input type="color" class="tab-color" id="dlabel-color" value="#333333"
+                      onfocus="pushUndo()" oninput="cfg.options.dataLabelColor=this.value;render()" />
+                  </div>
+                </div>
+                <div class="field-group" id="dlabel-pos-group" style="margin-top:6px">
+                  <label class="field-label">Position (bar charts)</label>
+                  <div class="seg-btns" id="dlabel-pos-btns">
+                    <button class="seg-btn active" data-val="top"    onclick="setDlabelPos('top')">Above</button>
+                    <button class="seg-btn"         data-val="center" onclick="setDlabelPos('center')">Center</button>
+                    <button class="seg-btn"         data-val="bottom" onclick="setDlabelPos('bottom')">Inside</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="edit-section" id="tick-format-section">
+              <div class="edit-section-title">Value Format</div>
+              <div class="seg-btns" id="label-format-btns">
+                <button class="seg-btn active" data-val="number"   onclick="setLabelFormat('number')">123</button>
+                <button class="seg-btn"         data-val="percent"  onclick="setLabelFormat('percent')">%</button>
+                <button class="seg-btn"         data-val="currency" onclick="setLabelFormat('currency')">$</button>
+              </div>
+              <div id="currency-row" style="display:none;margin-top:6px">
+                <div class="field-group">
+                  <label class="field-label">Symbol</label>
+                  <input class="field-input" type="text" id="currency-symbol" value="$" maxlength="4"
+                    onfocus="pushUndo()" oninput="cfg.options.currencySymbol=this.value;render()" />
+                </div>
+              </div>
+            </div>
+            <div class="edit-section" id="axis-range-section">
+              <div class="edit-section-title">Y-Axis Range</div>
+              <div class="style-row">
+                <div class="field-group" style="flex:1">
+                  <label class="field-label">Min</label>
+                  <input class="field-input" type="number" id="y-axis-min" placeholder="Auto"
+                    onfocus="pushUndo()" oninput="cfg.options.yAxisMin=this.value===''?null:+this.value;render()" />
+                </div>
+                <div class="field-group" style="flex:1">
+                  <label class="field-label">Max</label>
+                  <input class="field-input" type="number" id="y-axis-max" placeholder="Auto"
+                    onfocus="pushUndo()" oninput="cfg.options.yAxisMax=this.value===''?null:+this.value;render()" />
+                </div>
+              </div>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-title">Legend Labels</div>
+              <div class="field-group">
+                <label class="field-label">Legend Title (optional)</label>
+                <input class="field-input" id="legend-title-input" type="text" placeholder="e.g. Category"
+                  onfocus="pushUndo()" oninput="cfg.options.legendTitle=this.value;render()" />
+              </div>
+              <div class="style-row" style="margin-top:6px">
+                <div class="field-group" style="flex:1">
+                  <label class="field-label">Size</label>
+                  <input class="field-input" type="number" id="legend-font-size" min="8" max="30" value="13"
+                    onfocus="pushUndo()" oninput="cfg.style.legend.fontSize=+this.value;render()" />
+                </div>
+                <div class="field-group" style="flex:0 0 auto">
+                  <label class="field-label">Colour</label>
+                  <input type="color" class="tab-color" id="legend-color" value="#1e293b"
+                    onfocus="pushUndo()" oninput="cfg.style.legend.color=this.value;render()" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ STYLE TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-style" style="display:none">
+          <div class="edit-sections">
+            <div class="edit-section" id="colour-section"></div>
+            <div class="edit-section">
+              <div class="edit-section-title">Background</div>
               <div class="colour-row">
-                <span class="colour-row-name">Background colour</span>
+                <span class="colour-row-name">Canvas colour</span>
                 <div class="colour-wrap">
                   <span class="colour-dot lg bordered" id="canvas-bg-dot" style="background:#fff"></span>
                   <input type="color" class="colour-hidden" id="canvas-bg-input" value="#ffffff" oninput="setCanvasBg(this.value)" />
@@ -783,81 +1133,34 @@
           </div>
         </div>
 
-        <!-- DATA TAB -->
-        <div class="edit-body" id="tab-data" style="display:none">
-          <div class="edit-sections">
-            <!-- Labels -->
-            <div class="edit-section">
-              <div class="edit-section-title">Labels</div>
-              <div class="field-group">
-                <label class="field-label">Chart Title</label>
-                <input class="field-input" id="input-title" type="text" placeholder="e.g. Monthly Revenue" onfocus="pushUndo()" oninput="cfg.title=this.value;render()" />
-              </div>
-              <div id="axis-label-fields">
-                <div class="field-group">
-                  <label class="field-label">X-Axis Label</label>
-                  <input class="field-input" id="input-xlabel" type="text" placeholder="e.g. Month" onfocus="pushUndo()" oninput="cfg.xAxisLabel=this.value;render()" />
-                </div>
-                <div class="field-group">
-                  <label class="field-label">Y-Axis Label</label>
-                  <input class="field-input" id="input-ylabel" type="text" placeholder="e.g. Revenue (£)" onfocus="pushUndo()" oninput="cfg.yAxisLabel=this.value;render()" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Series names -->
-            <div class="edit-section" id="series-section">
-              <div class="edit-section-hdr">
-                <div class="edit-section-title">Series</div>
-                <button class="btn-sm" onclick="addSeries()">+ Add</button>
-              </div>
-              <div id="series-inputs"></div>
-            </div>
-
-            <!-- Data table -->
-            <div class="edit-section">
-              <div class="edit-section-hdr">
-                <div class="edit-section-title">Data Points</div>
-                <div style="display:flex;gap:5px">
-                  <button class="btn-sm" onclick="addDataRow()">+ Row</button>
-                  <button class="btn-sm" onclick="pushUndo();addSeries()" title="Add a new series column">+ Col</button>
-                </div>
-              </div>
-              <div class="data-table-wrap">
-                <table class="data-table" id="data-table">
-                  <thead><tr id="table-head"></tr></thead>
-                  <tbody id="table-body"></tbody>
-                </table>
-              </div>
-              <div class="data-toolbar">
-                <button class="btn-data-action" onclick="downloadDataCSV()" title="Download data as CSV">⬇ CSV</button>
-                <button class="btn-data-action" id="btn-copy-data" onclick="copyDataToClipboard()" title="Copy as tab-separated (paste into Excel / Sheets)">📋 Copy</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- DISPLAY TAB -->
-        <div class="edit-body" id="tab-display" style="display:none">
+        <!-- ══ EXPORT TAB ══════════════════════════════════════════ -->
+        <div class="edit-body" id="tab-export" style="display:none">
           <div class="edit-sections">
             <div class="edit-section">
-              <div class="edit-section-title">Display Options</div>
-              <label class="toggle-row">
-                <span>Show Legend</span>
-                <input type="checkbox" class="toggle-cb" id="tog-legend" checked onchange="pushUndo();cfg.options.showLegend=this.checked;render()" />
-              </label>
-              <label class="toggle-row" id="tog-grid-row">
-                <span>Show Grid Lines</span>
-                <input type="checkbox" class="toggle-cb" id="tog-grid" checked onchange="pushUndo();cfg.options.showGrid=this.checked;render()" />
-              </label>
-              <label class="toggle-row" id="tog-hbar-row">
-                <span>Horizontal Bars</span>
-                <input type="checkbox" class="toggle-cb" id="tog-hbar" onchange="pushUndo();cfg.horizontal=this.checked;render()" />
-              </label>
-              <label class="toggle-row">
-                <span>Show Data Labels</span>
-                <input type="checkbox" class="toggle-cb" id="tog-dlabels" onchange="pushUndo();cfg.options.showDataLabels=this.checked;render()" />
-              </label>
+              <div class="edit-section-title">File Format</div>
+              <div class="seg-btns" id="export-format-btns">
+                <button class="seg-btn active" data-val="png"  onclick="setExportFormat('png')">PNG</button>
+                <button class="seg-btn"         data-val="jpeg" onclick="setExportFormat('jpeg')">JPEG</button>
+                <button class="seg-btn"         data-val="webp" onclick="setExportFormat('webp')">WebP</button>
+              </div>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-title">Resolution (scale)</div>
+              <div class="seg-btns" id="export-scale-btns">
+                <button class="seg-btn"         data-val="1" onclick="setExportScale(1)">1×</button>
+                <button class="seg-btn active"  data-val="2" onclick="setExportScale(2)">2×</button>
+                <button class="seg-btn"         data-val="3" onclick="setExportScale(3)">3×</button>
+                <button class="seg-btn"         data-val="4" onclick="setExportScale(4)">4×</button>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Higher = sharper image, larger file size</div>
+            </div>
+            <div class="edit-section">
+              <div class="edit-section-title">Filename</div>
+              <input class="field-input" type="text" id="export-filename" placeholder="chart"
+                oninput="cfg.exportOpts.filename=this.value" />
+            </div>
+            <div class="edit-section">
+              <button class="btn-export-big" onclick="downloadChart()">⬇ Export Chart</button>
             </div>
           </div>
         </div>
@@ -893,7 +1196,7 @@
   let db, auth, currentUser;
   let chartInstance = null;
   let cfg = defaultCfg();        // mutable chart config
-  let activeTab = 'style';
+  let activeTab = 'data';
   let undoStack = [];
   let redoStack = [];
   const MAX_UNDO = 50;
@@ -901,24 +1204,40 @@
   function defaultCfg() {
     return {
       type: 'bar', horizontal: false,
-      title: 'Sample Chart', xAxisLabel: '', yAxisLabel: '',
+      title: 'Sample Chart', subtitle: '',
+      xAxisLabel: '', yAxisLabel: '',
       labels: ['Jan','Feb','Mar','Apr','May','Jun'],
+      hiddenRows: [],
       datasets: [{
         label: 'Series 1',
         data:  [65, 59, 80, 81, 56, 72],
         color: '#6366f1',
         colors: Array(6).fill('#6366f1'),
         uncertain: Array(6).fill(false),
+        gradient: false,
+        borderWidth: 0,
+        borderColor: '#000000',
       }],
-      options: { showLegend: true, showGrid: true, canvasBg: '#ffffff', showDataLabels: false, dataLabelColor: '#333333' },
-      style: {
-        title:   { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
-        xlabel:  { fontSize: 13, color: '#475569', x: null, y: null },
-        ylabel:  { fontSize: 13, color: '#475569', x: null, y: null },
-        xticks:  { fontSize: 12, color: '#475569' },
-        yticks:  { fontSize: 12, color: '#475569' },
-        legend:  { fontSize: 13, color: '#1e293b', position: 'top', x: null, y: null },
+      options: {
+        showLegend: true, showGrid: true, canvasBg: '#ffffff',
+        showDataLabels: false, dataLabelColor: '#333333',
+        valueLabelPos: 'top',
+        labelFormat: 'number', currencySymbol: '$',
+        xTickAngle: null,
+        yAxisMin: null, yAxisMax: null,
+        legendTitle: '',
+        figWidth: null, figHeight: null,
       },
+      style: {
+        title:    { fontSize: 18, color: '#0f172a', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', x: null, y: null },
+        subtitle: { fontSize: 13, color: '#64748b', fontFamily: "'Space Grotesk', sans-serif", fontWeight: '400' },
+        xlabel:   { fontSize: 13, color: '#475569', fontFamily: "'Space Grotesk', sans-serif", x: null, y: null },
+        ylabel:   { fontSize: 13, color: '#475569', fontFamily: "'Space Grotesk', sans-serif", x: null, y: null },
+        xticks:   { fontSize: 12, color: '#475569' },
+        yticks:   { fontSize: 12, color: '#475569' },
+        legend:   { fontSize: 13, color: '#1e293b', position: 'top', x: null, y: null },
+      },
+      exportOpts: { format: 'png', scale: 2, filename: '' },
     };
   }
 
@@ -967,6 +1286,7 @@
     document.getElementById('nav-user-name').textContent = user.displayName || user.email;
     document.getElementById('nav-avatar').src = user.photoURL || '';
     show('app-screen');
+    _applyFigSizeToWrapper();
     render();
     refreshEditUI();
   }
@@ -1118,9 +1438,11 @@
       type:       parsed.chartType || 'bar',
       horizontal: !!parsed.horizontal,
       title:      parsed.title      || '',
+      subtitle:   '',
       xAxisLabel: parsed.xAxisLabel || '',
       yAxisLabel: parsed.yAxisLabel || '',
       labels:     parsed.labels     || [],
+      hiddenRows: [],
       datasets:   (parsed.datasets || []).map((ds, i) => {
         const fallback  = PALETTE[i % PALETTE.length];
         const rawColors = Array.isArray(ds.backgroundColor)
@@ -1134,6 +1456,9 @@
           colors:   hexColors,
           uncertain: Array(nLabels).fill(false).map((_, idx) =>
             !!(ds.uncertainIndices || []).includes(idx)),
+          gradient:    false,
+          borderWidth: 0,
+          borderColor: '#000000',
         };
       }),
       options: {
@@ -1142,6 +1467,15 @@
         showDataLabels: !!opts.showDataLabels,
         dataLabelColor: normalizeHex(opts.dataLabelColor) || '#333333',
         canvasBg:       normalizeHex(opts.backgroundColor) || '#ffffff',
+        valueLabelPos:  'top',
+        labelFormat:    'number',
+        currencySymbol: '$',
+        xTickAngle:     null,
+        yAxisMin:       null,
+        yAxisMax:       null,
+        legendTitle:    '',
+        figWidth:       null,
+        figHeight:      null,
       },
       style: {
         ...def.style,
@@ -1175,7 +1509,9 @@
           fontSize: sty.tickFontSize  || def.style.yticks.fontSize,
           color:    normalizeHex(sty.tickColor) || def.style.yticks.color,
         },
+        subtitle: { ...def.style.subtitle },
       },
+      exportOpts: { format: 'png', scale: 2, filename: '' },
     };
     undoStack = []; redoStack = [];
     updateUndoButtons();
@@ -1234,6 +1570,30 @@
     ctx.restore();
   }
 
+  // ── Gradient fill plugin ────────────────────────────────────
+  Chart.register({
+    id: 'gradientFill',
+    beforeDatasetsDraw(chart) {
+      if (!cfg) return;
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      chart.data.datasets.forEach((dataset, idx) => {
+        const ds = cfg.datasets[idx];
+        if (!ds?.gradient) return;
+        const c = ds.color || PALETTE[idx % PALETTE.length];
+        const grad = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        if (cfg.type === 'area') {
+          grad.addColorStop(0, c + '99');
+          grad.addColorStop(1, c + '05');
+        } else {
+          grad.addColorStop(0, c + 'ee');
+          grad.addColorStop(1, c + '55');
+        }
+        dataset.backgroundColor = grad;
+      });
+    },
+  });
+
   Chart.register({
     id: 'customElements',
     afterDraw(chart) {
@@ -1242,6 +1602,7 @@
       const W = chart.width, H = chart.height;
 
       // Title (always drawn here)
+      let lastTitleY = 0;
       if (cfg.title && !dragTitleHidden) {
         const tx = (s.title.x != null) ? s.title.x : W / 2;
         const ty = (s.title.y != null) ? s.title.y : Math.round(s.title.fontSize/2) + 6;
@@ -1250,6 +1611,21 @@
         ctx.fillStyle = s.title.color;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(cfg.title, tx, ty);
+        ctx.restore();
+        lastTitleY = ty + s.title.fontSize / 2;
+      }
+
+      // Subtitle
+      if (cfg.subtitle) {
+        const ss = s.subtitle || {};
+        const sfs = ss.fontSize || 13;
+        const stx = W / 2;
+        const sty = lastTitleY ? lastTitleY + sfs / 2 + 3 : sfs / 2 + 8;
+        ctx.save();
+        ctx.font         = `${ss.fontWeight || '400'} ${sfs}px ${ss.fontFamily || s.title.fontFamily}`;
+        ctx.fillStyle    = ss.color || '#64748b';
+        ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(cfg.subtitle, stx, sty);
         ctx.restore();
       }
 
@@ -1283,9 +1659,11 @@
       if (cfg.options.showDataLabels) {
         const isArc   = cfg.type === 'pie' || cfg.type === 'doughnut';
         const isHoriz = cfg.type === 'bar' && cfg.horizontal;
+        const vlpos   = cfg.options.valueLabelPos || 'top'; // top | center | bottom
+        const dlFs    = (s.dataLabels?.fontSize || 11);
         ctx.save();
-        ctx.font         = `600 11px ${s.title.fontFamily || "'Space Grotesk',sans-serif"}`;
-        ctx.fillStyle    = cfg.options.dataLabelColor || '#333333';
+        ctx.font      = `600 ${dlFs}px ${s.title.fontFamily || "'Space Grotesk',sans-serif"}`;
+        ctx.fillStyle = cfg.options.dataLabelColor || '#333333';
 
         chart.data.datasets.forEach((ds, di) => {
           const meta = chart.getDatasetMeta(di);
@@ -1293,7 +1671,7 @@
           meta.data.forEach((el, i) => {
             const raw = ds.data[i];
             if (raw === null || raw === undefined) return;
-            const lbl = typeof raw === 'object' ? String(raw.y ?? '') : String(raw);
+            const lbl = fmtVal(raw);
             if (isArc) {
               const mid = (el.startAngle + el.endAngle) / 2;
               const r   = (el.innerRadius + el.outerRadius) / 2;
@@ -1303,8 +1681,20 @@
               ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
               ctx.fillText(lbl, el.x + 5, el.y);
             } else {
-              ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-              ctx.fillText(lbl, el.x, el.y - 4);
+              // Vertical bar — respect vlpos
+              const base = el.base ?? 0;
+              const tip  = el.y;
+              ctx.textAlign = 'center';
+              if (vlpos === 'center') {
+                ctx.textBaseline = 'middle';
+                ctx.fillText(lbl, el.x, (tip + base) / 2);
+              } else if (vlpos === 'bottom') {
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(lbl, el.x, base - 3);
+              } else { // top / above
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(lbl, el.x, tip - 4);
+              }
             }
           });
         });
@@ -1317,45 +1707,68 @@
      CHART RENDERING
   ───────────────────────────────────────────── */
 
+  // Visible row indices (rows not hidden)
+  function _visIdxs() {
+    const h = cfg.hiddenRows || [];
+    return cfg.labels.map((_,i)=>i).filter(i=>!h[i]);
+  }
+
+  // Format a value according to label format setting
+  function fmtVal(v) {
+    const fmt = cfg.options.labelFormat || 'number';
+    if (v === null || v === undefined) return '';
+    const n = typeof v === 'object' ? (v.y ?? v.x ?? '') : v;
+    if (fmt === 'percent')  return `${n}%`;
+    if (fmt === 'currency') return `${cfg.options.currencySymbol || '$'}${Number(n).toLocaleString()}`;
+    return String(n);
+  }
+
   // Build the Chart.js dataset objects from cfg
   function _buildDatasets() {
     const isArc     = cfg.type === 'pie' || cfg.type === 'doughnut';
     const isScatter = cfg.type === 'scatter';
     const isArea    = cfg.type === 'area';
+    const vis       = _visIdxs();
+
     return cfg.datasets.map((ds, i) => {
-      const fallback = PALETTE[i % PALETTE.length];
+      const fallback  = PALETTE[i % PALETTE.length];
+      const visData   = isScatter ? ds.data.filter((_,j)=>vis.includes(j)) : vis.map(j => ds.data[j] ?? null);
+      const visColors = vis.map(j => (ds.colors||[])[j] || fallback);
+
       if (isArc) {
         return {
           label:           ds.label,
-          data:            ds.data,
-          backgroundColor: ds.colors && ds.colors.length ? ds.colors : [fallback],
+          data:            visData,
+          backgroundColor: visColors,
           borderColor:     '#fff',
           borderWidth:     2,
           hoverOffset:     6,
         };
       }
-      const c = ds.color || fallback;
+
+      const c  = ds.color || fallback;
+      const bw = ds.borderWidth != null ? ds.borderWidth : (isArea || cfg.type === 'line' ? 2 : 0);
+      const bc = ds.borderColor || c;
+
       if (isScatter) {
         return {
-          label:           ds.label,
-          data:            ds.data,
-          backgroundColor: c + 'bb',
-          borderColor:     c,
-          borderWidth:     2,
-          pointRadius:     5,
-          pointHoverRadius:7,
+          label: ds.label, data: visData,
+          backgroundColor: c + 'bb', borderColor: c, borderWidth: 2,
+          pointRadius: 5, pointHoverRadius: 7,
         };
       }
       return {
-        label:           ds.label,
-        data:            ds.data,
-        backgroundColor: isArea ? c + '44' : c,
-        borderColor:     c,
-        borderWidth:     isArea ? 2 : 0,
-        fill:            isArea,
-        tension:         (isArea || cfg.type === 'line') ? 0.4 : undefined,
-        pointRadius:     cfg.type === 'line' ? 4 : 3,
-        pointHoverRadius:cfg.type === 'line' ? 6 : 5,
+        label:            ds.label,
+        data:             visData,
+        backgroundColor:  isArea ? c + '44' : c,   // overridden by gradient plugin if needed
+        borderColor:      bc,
+        borderWidth:      bw,
+        fill:             isArea,
+        tension:          (isArea || cfg.type === 'line') ? 0.4 : undefined,
+        pointRadius:      cfg.type === 'line' ? 4 : 3,
+        pointHoverRadius: cfg.type === 'line' ? 6 : 5,
+        // Store for gradient plugin
+        _dsIndex:         i,
       };
     });
   }
@@ -1446,13 +1859,27 @@
     const chartType  = (cfg.type === 'area') ? 'line' : cfg.type;
     const isHorizBar = cfg.type === 'bar' && cfg.horizontal;
     const s          = cfg.style;
-    const titlePad   = (cfg.title && s.title.x == null) ? s.title.fontSize + 14 : 0;
+
+    // Account for title + subtitle in top padding
+    let titlePad = 0;
+    if (cfg.title && s.title.x == null)    titlePad += s.title.fontSize + 10;
+    if (cfg.subtitle && titlePad > 0)      titlePad += (s.subtitle?.fontSize || 13) + 6;
+
+    const visLabels  = _visIdxs().map(i => cfg.labels[i]);
     const datasets   = _buildDatasets();
 
+    // Tick angle
+    const xAngle = cfg.options.xTickAngle;
+    const xTickOpts = {
+      color: s.xticks.color, font: { size: s.xticks.fontSize },
+      ...(xAngle != null ? { maxRotation: xAngle, minRotation: xAngle } : {}),
+    };
+
+    // Y-axis min/max
+    const yMin = cfg.options.yAxisMin;
+    const yMax = cfg.options.yAxisMax;
+
     // ── Can we update in-place? ──────────────────────────────────────────
-    // Only recreate when chart type or bar orientation changes — everything
-    // else (colours, font sizes, labels, data) can be patched without
-    // destroying the canvas, which eliminates the one-frame blank flash.
     const curType   = chartInstance?.config?.type;
     const curHoriz  = chartInstance?.options?.indexAxis === 'y';
     const canReuse  = chartInstance
@@ -1460,19 +1887,20 @@
                       && curHoriz === isHorizBar;
 
     if (canReuse) {
-      // Replace data references — Chart.js v4 re-reads these on update('none').
-      // (Object.assign into existing dataset objects is NOT reliable because
-      //  Chart.js caches computed element styles and may ignore mutations.)
-      chartInstance.data.labels   = cfg.labels;
+      chartInstance.data.labels   = visLabels;
       chartInstance.data.datasets = datasets;
 
-      // Patch options
       chartInstance.options.layout.padding.top = titlePad;
       const leg = chartInstance.options.plugins.legend;
-      leg.display         = cfg.options.showLegend && s.legend.x == null;
-      leg.position        = s.legend.position || 'top';
-      leg.labels.color    = s.legend.color;
-      leg.labels.font.size= s.legend.fontSize;
+      leg.display          = cfg.options.showLegend && s.legend.x == null;
+      leg.position         = s.legend.position || 'top';
+      leg.labels.color     = s.legend.color;
+      leg.labels.font.size = s.legend.fontSize;
+      if (cfg.options.legendTitle) {
+        leg.title = { display: true, text: cfg.options.legendTitle, color: s.legend.color, font: { size: s.legend.fontSize - 1, weight: '600' } };
+      } else {
+        leg.title = { display: false };
+      }
 
       if (!isArc && chartInstance.options.scales?.x) {
         const sx = chartInstance.options.scales.x;
@@ -1480,6 +1908,8 @@
         sx.grid.display           = cfg.options.showGrid;
         sx.ticks.color            = s.xticks.color;
         sx.ticks.font.size        = s.xticks.fontSize;
+        if (xAngle != null) { sx.ticks.maxRotation = xAngle; sx.ticks.minRotation = xAngle; }
+        else { delete sx.ticks.maxRotation; delete sx.ticks.minRotation; }
         sx.title.display          = !!cfg.xAxisLabel && s.xlabel.x == null;
         sx.title.text             = cfg.xAxisLabel;
         sx.title.color            = s.xlabel.color;
@@ -1487,36 +1917,45 @@
         sy.grid.display           = cfg.options.showGrid;
         sy.ticks.color            = s.yticks.color;
         sy.ticks.font.size        = s.yticks.fontSize;
+        sy.ticks.callback         = v => fmtVal(v);
         sy.title.display          = !!cfg.yAxisLabel && s.ylabel.x == null;
         sy.title.text             = cfg.yAxisLabel;
         sy.title.color            = s.ylabel.color;
         sy.title.font             = { size: s.ylabel.fontSize };
+        sy.min = yMin != null ? yMin : undefined;
+        sy.max = yMax != null ? yMax : undefined;
       }
 
-      chartInstance.update('none'); // instant, no flash
+      chartInstance.update('none');
       setupHitLayer();
       return;
     }
 
-    // ── Full recreate (type or orientation changed) ──────────────────────
+    // ── Full recreate ────────────────────────────────────────────────────
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+    const legendTitle = cfg.options.legendTitle
+      ? { display: true, text: cfg.options.legendTitle, color: s.legend.color, font: { size: s.legend.fontSize - 1, weight: '600' } }
+      : { display: false };
 
     const scales = isArc ? {} : {
       x: {
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: s.xticks.color, font: { size: s.xticks.fontSize } },
+        ticks: xTickOpts,
         title: { display: !!cfg.xAxisLabel && s.xlabel.x == null, text: cfg.xAxisLabel, color: s.xlabel.color, font: { size: s.xlabel.fontSize } },
       },
       y: {
+        min:   yMin != null ? yMin : undefined,
+        max:   yMax != null ? yMax : undefined,
         grid:  { display: cfg.options.showGrid, color: '#e2e8f0' },
-        ticks: { color: s.yticks.color, font: { size: s.yticks.fontSize } },
+        ticks: { color: s.yticks.color, font: { size: s.yticks.fontSize }, callback: v => fmtVal(v) },
         title: { display: !!cfg.yAxisLabel && s.ylabel.x == null, text: cfg.yAxisLabel, color: s.ylabel.color, font: { size: s.ylabel.fontSize } },
       },
     };
 
     chartInstance = new Chart(canvas, {
       type: chartType,
-      data: { labels: cfg.labels, datasets },
+      data: { labels: visLabels, datasets },
       options: {
         responsive:          true,
         maintainAspectRatio: false,
@@ -1528,9 +1967,11 @@
             display:  cfg.options.showLegend && s.legend.x == null,
             position: s.legend.position || 'top',
             labels:   { color: s.legend.color, font: { size: s.legend.fontSize }, padding: 16 },
+            title:    legendTitle,
           },
           title:          { display: false },
           customElements: {},
+          gradientFill:   {},
           tooltip: { enabled: false }, // we render our own draggable HTML tooltip
         },
         scales,
@@ -2359,30 +2800,39 @@
      DOWNLOAD
   ───────────────────────────────────────────── */
   function downloadChart() {
-    const btn    = document.getElementById('btn-download');
+    const navBtn = document.getElementById('btn-download');
     const canvas = document.getElementById('chart-canvas');
     const bg     = cfg.options.canvasBg || '#ffffff';
+    const opts   = cfg.exportOpts || {};
+    const fmt    = opts.format || 'png';
+    const scale  = opts.scale  || 2;
+    const name   = (opts.filename || cfg.title || 'chart').replace(/[\\/:*?"<>|]/g, '_');
 
     const exp = document.createElement('canvas');
-    exp.width  = canvas.width;
-    exp.height = canvas.height;
+    exp.width  = canvas.width  * scale;
+    exp.height = canvas.height * scale;
     const ctx  = exp.getContext('2d');
+    ctx.scale(scale, scale);
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, exp.width, exp.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(canvas, 0, 0);
 
-    const url = exp.toDataURL('image/png', 1.0);
+    const mime = fmt === 'jpeg' ? 'image/jpeg' : fmt === 'webp' ? 'image/webp' : 'image/png';
+    const quality = fmt === 'png' ? 1.0 : 0.92;
+    const url = exp.toDataURL(mime, quality);
     const a   = document.createElement('a');
-    a.download = (cfg.title || 'chart') + '.png';
+    a.download = `${name}.${fmt}`;
     a.href     = url;
     a.click();
 
-    btn.textContent = '✓ Saved!';
-    btn.classList.add('saved');
-    setTimeout(() => {
-      btn.innerHTML   = '⬇&nbsp; Download PNG';
-      btn.classList.remove('saved');
-    }, 1800);
+    if (navBtn) {
+      navBtn.textContent = '✓ Saved!';
+      navBtn.classList.add('saved');
+      setTimeout(() => {
+        navBtn.innerHTML   = '⬇&nbsp; Download PNG';
+        navBtn.classList.remove('saved');
+      }, 1800);
+    }
   }
 
   /* ─────────────────────────────────────────────
@@ -2390,7 +2840,7 @@
   ───────────────────────────────────────────── */
   function switchTab(tab) {
     activeTab = tab;
-    ['style','data','display'].forEach(t => {
+    ['data','layout','titles','values','style','export'].forEach(t => {
       document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
       document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === tab);
     });
@@ -2399,6 +2849,96 @@
   /* ─────────────────────────────────────────────
      EDIT PANEL — STYLE
   ───────────────────────────────────────────── */
+  /* ─────────────────────────────────────────────
+     NEW HELPER FUNCTIONS
+  ───────────────────────────────────────────── */
+
+  // Tick angle (Titles tab)
+  function setTickAngle(angle) {
+    pushUndo();
+    cfg.options.xTickAngle = angle;
+    const slider = document.getElementById('xtick-angle-slider');
+    const val    = document.getElementById('xtick-angle-val');
+    if (slider) slider.value = angle;
+    if (val)    val.textContent = angle + '°';
+    document.querySelectorAll('.angle-btn').forEach(b =>
+      b.classList.toggle('active', +b.textContent.replace('°','') === angle));
+    render();
+  }
+
+  // Legend position (Layout tab)
+  function setLegendPos(pos) {
+    pushUndo();
+    cfg.style.legend.position = pos;
+    document.querySelectorAll('#legend-pos-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === pos));
+    render();
+  }
+
+  // Data label position (Values tab)
+  function setDlabelPos(pos) {
+    pushUndo();
+    cfg.options.valueLabelPos = pos;
+    document.querySelectorAll('#dlabel-pos-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === pos));
+    render();
+  }
+
+  // Value format (Values tab)
+  function setLabelFormat(fmt) {
+    pushUndo();
+    cfg.options.labelFormat = fmt;
+    document.querySelectorAll('#label-format-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === fmt));
+    document.getElementById('currency-row').style.display = fmt === 'currency' ? '' : 'none';
+    render();
+  }
+
+  // Figure size (Layout tab)
+  function applyFigSize() {
+    const w = +document.getElementById('fig-width').value  || null;
+    const h = +document.getElementById('fig-height').value || null;
+    pushUndo();
+    cfg.options.figWidth  = w;
+    cfg.options.figHeight = h;
+    _applyFigSizeToWrapper();
+    render();
+  }
+
+  function clearFigSize() {
+    pushUndo();
+    cfg.options.figWidth  = null;
+    cfg.options.figHeight = null;
+    document.getElementById('fig-width').value  = '';
+    document.getElementById('fig-height').value = '';
+    _applyFigSizeToWrapper();
+    render();
+  }
+
+  function _applyFigSizeToWrapper() {
+    const wrap = document.getElementById('canvas-wrapper');
+    const w = cfg.options.figWidth;
+    const h = cfg.options.figHeight;
+    wrap.style.flex   = w ? 'none' : '1';
+    wrap.style.width  = w ? w + 'px' : '';
+    wrap.style.height = h ? h + 'px' : '';
+  }
+
+  // Export options (Export tab)
+  function setExportFormat(fmt) {
+    if (!cfg.exportOpts) cfg.exportOpts = {};
+    cfg.exportOpts.format = fmt;
+    document.querySelectorAll('#export-format-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === fmt));
+  }
+
+  function setExportScale(scale) {
+    if (!cfg.exportOpts) cfg.exportOpts = {};
+    cfg.exportOpts.scale = scale;
+    document.querySelectorAll('#export-scale-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', +b.dataset.val === scale));
+  }
+
   function setChartType(type) {
     pushUndo();
     cfg.type = type;
@@ -2417,6 +2957,7 @@
   function buildColourSection() {
     const el = document.getElementById('colour-section');
     const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
+    const canGradient = !isArc && cfg.type !== 'scatter';
     if (isArc) {
       el.innerHTML = `<div class="edit-section-title">Slice Colours</div>` +
         cfg.labels.map((lbl, i) => {
@@ -2425,21 +2966,35 @@
             <span class="colour-row-name">${escHtml(lbl)}</span>
             <div class="colour-wrap">
               <span class="colour-dot" id="slice-dot-${i}" style="background:${c}"></span>
-              <input type="color" class="colour-hidden" value="${c}"
-                oninput="setSliceColor(${i}, this.value)" />
+              <input type="color" class="colour-hidden" value="${c}" oninput="setSliceColor(${i}, this.value)" />
             </div>
           </div>`;
         }).join('');
     } else {
-      el.innerHTML = `<div class="edit-section-title">Series Colours</div>` +
+      el.innerHTML = `<div class="edit-section-title">Series</div>` +
         cfg.datasets.map((ds, i) => {
           const c = ds.color || PALETTE[i % PALETTE.length];
-          return `<div class="colour-row">
-            <span class="colour-row-name">${escHtml(ds.label)}</span>
-            <div class="colour-wrap">
-              <span class="colour-dot lg" id="series-dot-${i}" style="background:${c}"></span>
-              <input type="color" class="colour-hidden" value="${c}"
-                oninput="setSeriesColor(${i}, this.value)" />
+          const bw = ds.borderWidth || 0;
+          const bc = ds.borderColor || '#000000';
+          return `<div style="padding:8px;background:var(--bg-card);border-radius:var(--r);margin-bottom:6px">
+            <div class="colour-row">
+              <span class="colour-row-name" style="font-weight:500">${escHtml(ds.label)}</span>
+              <div class="colour-wrap">
+                <span class="colour-dot lg" id="series-dot-${i}" style="background:${c}"></span>
+                <input type="color" class="colour-hidden" value="${c}" oninput="setSeriesColor(${i}, this.value)" />
+              </div>
+            </div>
+            <div class="series-style-row">
+              ${canGradient ? `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer">
+                <input type="checkbox" ${ds.gradient?'checked':''} onchange="pushUndo();cfg.datasets[${i}].gradient=this.checked;render()" />Gradient</label>` : ''}
+              <span class="series-style-label">Border</span>
+              <input class="series-style-input" type="number" min="0" max="10" value="${bw}" title="Border width (px)"
+                onfocus="pushUndo()" oninput="cfg.datasets[${i}].borderWidth=+this.value;render()" />
+              <div class="colour-wrap" title="Border colour">
+                <span class="colour-dot" style="background:${bc};width:18px;height:18px"></span>
+                <input type="color" class="colour-hidden" value="${bc}"
+                  oninput="cfg.datasets[${i}].borderColor=this.value;render()" />
+              </div>
             </div>
           </div>`;
         }).join('');
@@ -2492,16 +3047,20 @@
   function buildDataTable() {
     const head = document.getElementById('table-head');
     const body = document.getElementById('table-body');
-    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
 
-    // Header
-    head.innerHTML = `<th>${isArc ? 'Slice' : 'Label'}</th>` +
+    // Header — eye col + label col + data cols + delete col
+    head.innerHTML = `<th title="Show/hide row">👁</th>` +
+      `<th>${isArc ? 'Slice' : 'Label'}</th>` +
       cfg.datasets.map(ds => `<th>${escHtml(isArc ? 'Value' : ds.label)}</th>`).join('') +
       '<th></th>';
 
     // Rows
-    body.innerHTML = cfg.labels.map((lbl, li) =>
-      `<tr>
+    body.innerHTML = cfg.labels.map((lbl, li) => {
+      const hidden = (cfg.hiddenRows || [])[li];
+      return `<tr class="${hidden ? 'tbl-row-hidden' : ''}">
+        <td><button class="btn-eye${hidden ? ' hidden-row' : ''}" title="${hidden ? 'Show row' : 'Hide row'}"
+          onclick="toggleHideRow(${li})">${hidden ? '🚫' : '👁'}</button></td>
         <td><input class="tbl-input" value="${escHtml(lbl)}"
           onfocus="pushUndo()"
           oninput="cfg.labels[${li}]=this.value; buildColourSection(); render()" /></td>
@@ -2512,14 +3071,22 @@
               <input class="tbl-input num" type="number" value="${ds.data[li] ?? ''}"
                 onfocus="pushUndo()"
                 oninput="cfg.datasets[${di}].data[${li}]=this.value===''?null:Number(this.value); render()" />
-              ${unc ? `<button class="tbl-uncertain-flag" title="AI was uncertain about this value — click to mark as confirmed" onclick="if(!cfg.datasets[${di}].uncertain)cfg.datasets[${di}].uncertain=[];cfg.datasets[${di}].uncertain[${li}]=false;buildDataTable()">⚠</button>` : ''}
+              ${unc ? `<button class="tbl-uncertain-flag" title="Click to confirm value" onclick="if(!cfg.datasets[${di}].uncertain)cfg.datasets[${di}].uncertain=[];cfg.datasets[${di}].uncertain[${li}]=false;buildDataTable()">⚠</button>` : ''}
             </div>
           </td>`;
         }).join('')}
         <td><button class="btn-del" onclick="removeDataRow(${li})"
           ${cfg.labels.length <= 1 ? 'disabled' : ''} title="Remove row">×</button></td>
-      </tr>`
-    ).join('');
+      </tr>`;
+    }).join('');
+  }
+
+  function toggleHideRow(li) {
+    pushUndo();
+    if (!cfg.hiddenRows) cfg.hiddenRows = [];
+    cfg.hiddenRows[li] = !cfg.hiddenRows[li];
+    buildDataTable();
+    render();
   }
 
   function addSeries() {
@@ -2569,32 +3136,78 @@
      REFRESH ENTIRE EDIT UI
   ───────────────────────────────────────────── */
   function refreshEditUI() {
-    // Sync text inputs
-    document.getElementById('input-title').value  = cfg.title;
-    document.getElementById('input-xlabel').value = cfg.xAxisLabel;
-    document.getElementById('input-ylabel').value = cfg.yAxisLabel;
+    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
 
-    // Sync toggles
-    document.getElementById('tog-legend').checked  = cfg.options.showLegend     !== false;
-    document.getElementById('tog-grid').checked    = cfg.options.showGrid       !== false;
+    // ── Titles tab ────────────────────────────────────────────
+    document.getElementById('input-title').value         = cfg.title || '';
+    document.getElementById('input-subtitle').value      = cfg.subtitle || '';
+    document.getElementById('input-xlabel').value        = cfg.xAxisLabel || '';
+    document.getElementById('input-ylabel').value        = cfg.yAxisLabel || '';
+    document.getElementById('title-font-size').value     = cfg.style.title.fontSize;
+    document.getElementById('title-color').value         = cfg.style.title.color;
+    document.getElementById('title-bold').checked        = cfg.style.title.fontWeight === '700';
+    document.getElementById('subtitle-font-size').value  = cfg.style.subtitle?.fontSize || 13;
+    document.getElementById('subtitle-color').value      = cfg.style.subtitle?.color || '#64748b';
+    document.getElementById('xlabel-font-size').value    = cfg.style.xlabel.fontSize;
+    document.getElementById('xlabel-color').value        = cfg.style.xlabel.color;
+    document.getElementById('ylabel-font-size').value    = cfg.style.ylabel.fontSize;
+    document.getElementById('ylabel-color').value        = cfg.style.ylabel.color;
+    document.getElementById('xtick-font-size').value     = cfg.style.xticks.fontSize;
+    document.getElementById('xtick-color').value         = cfg.style.xticks.color;
+    document.getElementById('ytick-font-size').value     = cfg.style.yticks.fontSize;
+    document.getElementById('ytick-color').value         = cfg.style.yticks.color;
+    const angle = cfg.options.xTickAngle ?? 0;
+    document.getElementById('xtick-angle-slider').value  = angle;
+    document.getElementById('xtick-angle-val').textContent = angle + '°';
+    document.querySelectorAll('.angle-btn').forEach(b =>
+      b.classList.toggle('active', +b.textContent.replace('°','') === angle));
+    document.getElementById('axis-label-fields').style.display = isArc ? 'none' : '';
+
+    // ── Layout tab ────────────────────────────────────────────
+    document.getElementById('tog-legend').checked  = cfg.options.showLegend !== false;
+    document.getElementById('tog-grid').checked    = cfg.options.showGrid   !== false;
     document.getElementById('tog-hbar').checked    = !!cfg.horizontal;
-    document.getElementById('tog-dlabels').checked = !!cfg.options.showDataLabels;
+    document.getElementById('tog-hbar-row').style.display  = cfg.type === 'bar' ? '' : 'none';
+    document.getElementById('tog-grid-row').style.display  = isArc ? 'none' : '';
+    document.querySelectorAll('.type-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.type === cfg.type));
+    const lpos = cfg.style.legend.position || 'top';
+    document.querySelectorAll('#legend-pos-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === lpos));
+    if (cfg.options.figWidth)  document.getElementById('fig-width').value  = cfg.options.figWidth;
+    if (cfg.options.figHeight) document.getElementById('fig-height').value = cfg.options.figHeight;
 
-    // Sync canvas bg
+    // ── Values tab ────────────────────────────────────────────
+    document.getElementById('tog-dlabels').checked        = !!cfg.options.showDataLabels;
+    document.getElementById('dlabel-color').value         = cfg.options.dataLabelColor || '#333333';
+    document.getElementById('dlabel-font-size').value     = cfg.style.dataLabels?.fontSize || 11;
+    const vlpos = cfg.options.valueLabelPos || 'top';
+    document.querySelectorAll('#dlabel-pos-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === vlpos));
+    const fmt = cfg.options.labelFormat || 'number';
+    document.querySelectorAll('#label-format-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === fmt));
+    document.getElementById('currency-row').style.display  = fmt === 'currency' ? '' : 'none';
+    document.getElementById('currency-symbol').value       = cfg.options.currencySymbol || '$';
+    document.getElementById('y-axis-min').value            = cfg.options.yAxisMin ?? '';
+    document.getElementById('y-axis-max').value            = cfg.options.yAxisMax ?? '';
+    document.getElementById('legend-title-input').value    = cfg.options.legendTitle || '';
+    document.getElementById('legend-font-size').value      = cfg.style.legend.fontSize;
+    document.getElementById('legend-color').value          = cfg.style.legend.color;
+    document.getElementById('series-section').style.display = isArc ? 'none' : '';
+
+    // ── Style tab ─────────────────────────────────────────────
     const bg = cfg.options.canvasBg || '#ffffff';
     document.getElementById('canvas-bg-dot').style.background = bg;
     document.getElementById('canvas-bg-input').value = bg;
 
-    // Show/hide axis fields
-    const isArc = cfg.type === 'pie' || cfg.type === 'doughnut' || cfg.type === 'waffle';
-    document.getElementById('axis-label-fields').style.display = isArc ? 'none' : '';
-    document.getElementById('series-section').style.display    = isArc ? 'none' : '';
-    document.getElementById('tog-hbar-row').style.display      = cfg.type === 'bar' ? '' : 'none';
-    document.getElementById('tog-grid-row').style.display      = isArc ? 'none' : '';
-
-    // Sync chart type grid
-    document.querySelectorAll('.type-btn').forEach(b =>
-      b.classList.toggle('active', b.dataset.type === cfg.type));
+    // ── Export tab ────────────────────────────────────────────
+    const exp = cfg.exportOpts || {};
+    document.querySelectorAll('#export-format-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.val === (exp.format || 'png')));
+    document.querySelectorAll('#export-scale-btns .seg-btn').forEach(b =>
+      b.classList.toggle('active', +b.dataset.val === (exp.scale || 2)));
+    document.getElementById('export-filename').value = exp.filename || '';
 
     buildColourSection();
     buildSeriesInputs();
