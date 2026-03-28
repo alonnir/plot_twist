@@ -2419,12 +2419,29 @@
       }
       case 'series': {
         try {
-          const el = chartInstance.getDatasetMeta(zone.datasetIndex)?.data?.[zone.index];
+          const meta = chartInstance.getDatasetMeta(zone.datasetIndex);
+          if (!meta) return null;
+          // For bar charts: bounding box spanning ALL bars of this series
+          if (cfg.type === 'bar') {
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            meta.data.forEach(el => {
+              const p = el.getProps(['x','y','base','width'], true);
+              if (p.width !== undefined) {
+                const bx0 = p.x - (p.width||20)/2, bx1 = p.x + (p.width||20)/2;
+                const by0 = Math.min(p.y, p.base ?? p.y), by1 = Math.max(p.y, p.base ?? p.y);
+                if (bx0 < x0) x0 = bx0; if (bx1 > x1) x1 = bx1;
+                if (by0 < y0) y0 = by0; if (by1 > y1) y1 = by1;
+              }
+            });
+            return x0 === Infinity ? null : [x0 - 2, y0 - 2, x1 + 2, y1 + 2];
+          }
+          // For other chart types: single-element bounds as before
+          const el = meta.data[zone.index];
           if (!el) return null;
           const p = el.getProps(['x','y','base','width','height'], true);
           if (p.width !== undefined) {
-            const x1 = p.x - (p.width||20)/2, y1 = Math.min(p.y, p.base||p.y);
-            return [x1, y1, x1+(p.width||20), Math.max(p.y, p.base||p.y)];
+            const x0 = p.x - (p.width||20)/2, y0 = Math.min(p.y, p.base||p.y);
+            return [x0, y0, x0+(p.width||20), Math.max(p.y, p.base||p.y)];
           }
           const r = (el.options?.radius||5) + 4;
           return [p.x-r, p.y-r, p.x+r, p.y+r];
@@ -2436,7 +2453,11 @@
 
   function zonesEqual(a, b) {
     if (!a || !b || a.type !== b.type) return false;
-    if (a.type === 'series') return a.datasetIndex === b.datasetIndex && a.index === b.index;
+    if (a.type === 'series') {
+      // For bar charts treat any bar in the same dataset as the same zone
+      if (cfg.type === 'bar') return a.datasetIndex === b.datasetIndex;
+      return a.datasetIndex === b.datasetIndex && a.index === b.index;
+    }
     return true;
   }
 
@@ -2762,10 +2783,12 @@
     const body  = document.getElementById('insp-body');
     insp.style.display = 'flex';
     body.innerHTML = buildInspectorHTML(zone);
-    label.textContent = {
-      title:'Title', xlabel:'X-Axis Label', ylabel:'Y-Axis Label',
-      legend:'Legend', series:'Data Series', xticks:'X Tick Labels', yticks:'Y Tick Labels',
-    }[zone.type] || 'Element';
+    label.textContent = zone.type === 'series' && cfg.type === 'bar'
+      ? 'Series'
+      : ({
+          title:'Title', xlabel:'X-Axis Label', ylabel:'Y-Axis Label',
+          legend:'Legend', series:'Data Point', xticks:'X Tick Labels', yticks:'Y Tick Labels',
+        }[zone.type] || 'Element');
     // Position inspector
     const wrap = document.getElementById('canvas-wrapper');
     const iw = 246, ih = insp.offsetHeight || 200;
@@ -2872,29 +2895,56 @@
     }
 
     if (zone.type === 'series') {
-      const ds = cfg.datasets[zone.datasetIndex];
+      const ds  = cfg.datasets[zone.datasetIndex];
+      const di  = zone.datasetIndex;
       const isArc = cfg.type === 'pie' || cfg.type === 'doughnut';
+
       if (isArc) {
         const col = (ds.colors && ds.colors[zone.index]) || PALETTE[zone.index % PALETTE.length];
         return `
           <div class="insp-field"><span class="insp-label">Label: ${escHtml(cfg.labels[zone.index]||'')}</span></div>
           <div class="insp-row">
-            <div class="insp-field"><span class="insp-label">Color</span>
-              <input type="color" class="insp-color" value="${col}"
-                oninput="cfg.datasets[${zone.datasetIndex}].colors[${zone.index}]=this.value;render()" /></div>
+            <div class="insp-field"><span class="insp-label">Colour</span>
+              <span class="colour-dot" style="background:${col};cursor:pointer"
+                onclick="openColorPicker(this,'${col}',v=>{pushUndo();cfg.datasets[${di}].colors[${zone.index}]=v;document.getElementById('slice-dot-${zone.index}')&&(document.getElementById('slice-dot-${zone.index}').style.background=v);render()})"
+                title="${col}"></span></div>
           </div>`;
       }
+
+      // Bar chart — series-level selection
+      if (cfg.type === 'bar') {
+        const col = ds.color || PALETTE[di % PALETTE.length];
+        return `
+          <div class="insp-field"><span class="insp-label">Series name</span>
+            <input class="insp-input" value="${escHtml(ds.label)}"
+              onfocus="pushUndo()" oninput="cfg.datasets[${di}].label=this.value;buildSeriesInputs();buildDataTable();render()" /></div>
+          <div class="insp-row" style="align-items:center;margin-top:4px">
+            <div class="insp-field"><span class="insp-label">Colour (all bars)</span>
+              <span class="colour-dot lg" id="insp-series-dot-${di}" style="background:${col};cursor:pointer"
+                onclick="openColorPicker(this,'${col}',v=>{setSeriesColor(${di},v)})"
+                title="${col}"></span></div>
+          </div>
+          <div class="insp-field" style="margin-top:4px"><span class="insp-label">${escHtml(cfg.labels[zone.index]||'')} value</span>
+            <input class="insp-input" type="number" value="${ds.data[zone.index] ?? ''}"
+              onfocus="pushUndo()"
+              oninput="cfg.datasets[${di}].data[${zone.index}]=this.value===''?null:+this.value;render()" /></div>`;
+      }
+
+      // Line / area / scatter — single point
+      const col = ds.color || PALETTE[di % PALETTE.length];
       return `
         <div class="insp-field"><span class="insp-label">Series</span>
           <input class="insp-input" value="${escHtml(ds.label)}"
-            onfocus="pushUndo()" oninput="cfg.datasets[${zone.datasetIndex}].label=this.value;render()" /></div>
+            onfocus="pushUndo()" oninput="cfg.datasets[${di}].label=this.value;render()" /></div>
         <div class="insp-row">
-          <div class="insp-field"><span class="insp-label">Color</span>
-            <input type="color" class="insp-color" value="${ds.color||PALETTE[zone.datasetIndex%PALETTE.length]}"
-              oninput="cfg.datasets[${zone.datasetIndex}].color=this.value;render()" /></div>
+          <div class="insp-field"><span class="insp-label">Colour</span>
+            <span class="colour-dot" style="background:${col};cursor:pointer"
+              onclick="openColorPicker(this,'${col}',v=>{setSeriesColor(${di},v)})"
+              title="${col}"></span></div>
           <div class="insp-field"><span class="insp-label">Value</span>
             <input class="insp-input" type="number" value="${ds.data[zone.index]}"
-              oninput="cfg.datasets[${zone.datasetIndex}].data[${zone.index}]=+this.value;render()" /></div>
+              onfocus="pushUndo()"
+              oninput="cfg.datasets[${di}].data[${zone.index}]=+this.value;render()" /></div>
         </div>
         <div class="insp-hint">${escHtml(cfg.labels[zone.index]||String(zone.index))}</div>`;
     }
@@ -3114,7 +3164,12 @@
     pushUndo();
     cfg.datasets[idx].color  = val;
     cfg.datasets[idx].colors = Array(cfg.labels.length).fill(val);
-    document.getElementById('series-dot-' + idx).style.background = val;
+    // Update sidebar dot
+    const sdot = document.getElementById('series-dot-' + idx);
+    if (sdot) sdot.style.background = val;
+    // Update inspector dot if open
+    const idot = document.getElementById('insp-series-dot-' + idx);
+    if (idot) { idot.style.background = val; idot.setAttribute('onclick', `openColorPicker(this,'${val}',v=>{setSeriesColor(${idx},v)})`); }
     render();
   }
 
