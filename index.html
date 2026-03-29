@@ -262,8 +262,9 @@
       flex: 1; overflow: hidden;
       border-radius: var(--r-lg);
       box-shadow: 0 8px 40px rgba(0,0,0,.5);
-      display: flex; /* always flex so compare pane slots in */
+      display: flex; align-items: center; /* centre for ratio-constrained wrapper */
     }
+    #compare-pane { align-self: stretch; } /* compare always full height */
     #canvas-wrapper {
       flex: 1; height: 100%;
       display: flex; align-items: center; justify-content: center;
@@ -1390,7 +1391,7 @@
         xTickAngle: null,
         yAxisMin: null, yAxisMax: null,
         legendTitle: '',
-        figWidth: null, figHeight: null,
+        figWidth: null, figHeight: null, figRatio: null,
         barBorderRadius: 0,
         stacked: false,
       },
@@ -1648,6 +1649,7 @@
         legendTitle:      '',
         figWidth:         null,
         figHeight:        null,
+        figRatio:         null,
         barBorderRadius:  0,
         stacked:          false,
       },
@@ -1720,15 +1722,14 @@
     ctx.font         = `${fs}px ${s.fontFamily || 'Inter,sans-serif'}`;
     ctx.textBaseline = 'middle';
     const isArcType = cfg.type === 'pie' || cfg.type === 'doughnut';
-    const items = chartInstance
-      ? chartInstance.data.datasets.map((ds, i) => {
-          const c = isArcType ? (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor)
-                              : (ds.borderColor || (Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || PALETTE[i % PALETTE.length]);
-          return { color: typeof c === 'string' ? c : PALETTE[i % PALETTE.length], label: ds.label || `Series ${i+1}` };
-        })
-      : cfg.labels.map((lbl, i) => ({
+    const items = isArcType
+      ? cfg.labels.map((lbl, i) => ({
           color: (cfg.datasets[0]?.colors || [])[i] || PALETTE[i % PALETTE.length],
           label: lbl,
+        }))
+      : cfg.datasets.map((ds, i) => ({
+          color: ds.color || PALETTE[i % PALETTE.length],
+          label: ds.label || `Series ${i+1}`,
         }));
     const widths  = items.map(it => sw + gap + ctx.measureText(it.label).width);
     const totalW  = widths.reduce((a,b)=>a+b,0) + (items.length-1)*itemGap;
@@ -3351,6 +3352,8 @@
     pushUndo();
     cfg.options.figWidth  = w;
     cfg.options.figHeight = h;
+    cfg.options.figRatio  = null;   // explicit px overrides ratio
+    updateRatioHighlight();
     _applyFigSizeToWrapper();
     render();
   }
@@ -3359,46 +3362,59 @@
     pushUndo();
     cfg.options.figWidth  = null;
     cfg.options.figHeight = null;
+    cfg.options.figRatio  = null;
     document.getElementById('fig-width').value  = '';
     document.getElementById('fig-height').value = '';
+    updateRatioHighlight();
     _applyFigSizeToWrapper();
     render();
   }
 
   function applyRatio(w, h) {
     pushUndo();
-    const wrap = document.getElementById('canvas-wrapper');
-    const currentW = cfg.options.figWidth || wrap.clientWidth || 600;
-    const newH = Math.round(currentW * h / w);
-    cfg.options.figWidth  = currentW;
-    cfg.options.figHeight = newH;
-    document.getElementById('fig-width').value  = currentW;
-    document.getElementById('fig-height').value = newH;
+    // Store ratio; clear manual pixel sizes (they conflict)
+    cfg.options.figRatio  = { w, h };
+    cfg.options.figWidth  = null;
+    cfg.options.figHeight = null;
+    document.getElementById('fig-width').value  = '';
+    document.getElementById('fig-height').value = '';
     updateRatioHighlight();
     _applyFigSizeToWrapper();
     render();
   }
 
   function updateRatioHighlight() {
-    const w = +document.getElementById('fig-width').value;
-    const h = +document.getElementById('fig-height').value;
-    const RATIOS = [['1:1',1,1],['4:3',4,3],['3:2',3,2],['16:9',16,9],['2:3',2,3],['9:16',9,16]];
+    const r = cfg.options.figRatio;
     document.querySelectorAll('#ratio-btns .seg-btn').forEach(btn => {
-      const r = RATIOS.find(x => x[0] === btn.dataset.ratio);
-      if (!r || !w || !h) { btn.classList.remove('active'); return; }
-      const ratio = w / h;
-      const target = r[1] / r[2];
-      btn.classList.toggle('active', Math.abs(ratio - target) < 0.02);
+      if (!r) { btn.classList.remove('active'); return; }
+      const [bw, bh] = btn.dataset.ratio.split(':').map(Number);
+      btn.classList.toggle('active', bw === r.w && bh === r.h);
     });
   }
 
   function _applyFigSizeToWrapper() {
     const wrap = document.getElementById('canvas-wrapper');
-    const w = cfg.options.figWidth;
-    const h = cfg.options.figHeight;
-    wrap.style.flex   = w ? 'none' : '1';
-    wrap.style.width  = w ? w + 'px' : '';
-    wrap.style.height = h ? h + 'px' : '';
+    const r  = cfg.options.figRatio;
+    const fw = cfg.options.figWidth;
+    const fh = cfg.options.figHeight;
+
+    if (r) {
+      // Aspect-ratio mode: wrapper self-sizes to fill available space at the ratio
+      wrap.style.flex         = 'none';
+      wrap.style.width        = 'auto';
+      wrap.style.height       = 'auto';
+      wrap.style.maxWidth     = '100%';
+      wrap.style.maxHeight    = '100%';
+      wrap.style.aspectRatio  = `${r.w}/${r.h}`;
+    } else {
+      // Explicit pixel mode (or auto)
+      wrap.style.flex         = fw ? 'none' : '1';
+      wrap.style.width        = fw ? fw + 'px' : '';
+      wrap.style.height       = fh ? fh + 'px' : '100%';
+      wrap.style.maxWidth     = '';
+      wrap.style.maxHeight    = '';
+      wrap.style.aspectRatio  = '';
+    }
   }
 
   // Export options (Export tab)
@@ -3686,8 +3702,8 @@
     const lpos = cfg.style.legend.position || 'top';
     document.querySelectorAll('#legend-pos-btns .seg-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.val === lpos));
-    if (cfg.options.figWidth)  document.getElementById('fig-width').value  = cfg.options.figWidth;
-    if (cfg.options.figHeight) document.getElementById('fig-height').value = cfg.options.figHeight;
+    document.getElementById('fig-width').value  = cfg.options.figWidth  || '';
+    document.getElementById('fig-height').value = cfg.options.figHeight || '';
     updateRatioHighlight();
 
     // ── Values tab ────────────────────────────────────────────
