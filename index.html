@@ -168,6 +168,15 @@
       font-size: 13px; transition: all .15s;
     }
     .btn-signout:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-save-nav {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 11px;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border-lt); border-radius: var(--r);
+      font-size: 13px; cursor: pointer; transition: all .15s;
+    }
+    .btn-save-nav:hover { border-color: var(--indigo); color: var(--indigo); }
+    .btn-save-nav.saved { border-color: #10b981; color: #10b981; }
 
     /* ── MAIN 3-COLUMN ── */
     .editor-main {
@@ -803,11 +812,31 @@
         <span class="nav-brand-name">Plot Twist</span>
       </div>
       <div class="nav-right">
+        <button class="btn-save-nav" id="btn-save-nav" onclick="saveChartProgress()" title="Save progress">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+        <button class="btn-save-nav" id="btn-load-nav" onclick="openSavedCharts()" title="My saved charts" style="opacity:.75">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          My charts
+        </button>
         <span class="nav-user" id="nav-user-name"></span>
         <img class="nav-avatar" id="nav-avatar" src="" alt="avatar" onerror="this.style.display='none'" />
         <button class="btn-signout" onclick="doSignOut()">Sign out</button>
       </div>
     </header>
+
+    <!-- SAVED CHARTS MODAL -->
+    <div id="saved-charts-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:var(--bg-card);border-radius:12px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-lt);box-shadow:0 20px 60px rgba(0,0,0,.4)">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-lt);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-weight:600;font-size:15px">My Saved Charts</span>
+          <button onclick="document.getElementById('saved-charts-modal').style.display='none'"
+            style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1">✕</button>
+        </div>
+        <div id="saved-charts-list" style="flex:1;overflow-y:auto;padding:12px 16px;min-height:80px"></div>
+      </div>
+    </div>
 
     <!-- MAIN EDITOR -->
     <div class="editor-main">
@@ -988,14 +1017,23 @@
             <div class="edit-section">
               <div class="edit-section-title">Figure Size</div>
               <div class="size-row">
-                <input class="field-input" type="number" id="fig-width" placeholder="Auto" min="200" max="3000" />
+                <input class="field-input" type="number" id="fig-width" placeholder="Auto" min="200" max="3000" oninput="updateRatioHighlight()" />
                 <span class="size-x">×</span>
-                <input class="field-input" type="number" id="fig-height" placeholder="Auto" min="150" max="3000" />
+                <input class="field-input" type="number" id="fig-height" placeholder="Auto" min="150" max="3000" oninput="updateRatioHighlight()" />
                 <span class="size-unit">px</span>
               </div>
-              <div style="display:flex;gap:6px">
+              <div style="display:flex;gap:6px;margin-top:4px">
                 <button class="btn-sm" style="flex:1" onclick="applyFigSize()">Apply</button>
                 <button class="btn-sm" style="flex:1;opacity:.7" onclick="clearFigSize()">↺ Auto</button>
+              </div>
+              <div class="field-label" style="margin-top:8px;margin-bottom:4px">Aspect Ratio</div>
+              <div class="seg-btns" id="ratio-btns" style="flex-wrap:wrap;gap:4px">
+                <button class="seg-btn" data-ratio="1:1"   onclick="applyRatio(1,1)">1:1</button>
+                <button class="seg-btn" data-ratio="4:3"   onclick="applyRatio(4,3)">4:3</button>
+                <button class="seg-btn" data-ratio="3:2"   onclick="applyRatio(3,2)">3:2</button>
+                <button class="seg-btn" data-ratio="16:9"  onclick="applyRatio(16,9)">16:9</button>
+                <button class="seg-btn" data-ratio="2:3"   onclick="applyRatio(2,3)">2:3</button>
+                <button class="seg-btn" data-ratio="9:16"  onclick="applyRatio(9,16)">9:16</button>
               </div>
             </div>
             <div class="edit-section" id="tog-grid-row">
@@ -1244,9 +1282,14 @@
               <div class="colour-row">
                 <span class="colour-row-name">Canvas colour</span>
                 <span class="colour-dot lg bordered" id="canvas-bg-dot" style="background:#fff"
-                  onclick="openColorPicker(this, cfg.options.canvasBg||'#ffffff', v=>setCanvasBg(v))"
+                  onclick="openColorPicker(this, (cfg.options.canvasBg==='transparent'?'#ffffff':cfg.options.canvasBg)||'#ffffff', v=>setCanvasBg(v))"
                   title="Canvas background"></span>
               </div>
+              <label class="toggle-row" style="margin-top:6px">
+                <span>Transparent</span>
+                <input type="checkbox" class="toggle-cb" id="tog-transparent-bg"
+                  onchange="setCanvasBg(this.checked?'transparent':cfg.options._prevBg||'#ffffff')" />
+              </label>
             </div>
           </div>
         </div>
@@ -1335,6 +1378,7 @@
         colors: Array(6).fill('#6366f1'),
         uncertain: Array(6).fill(false),
         gradient: false,
+        gradientColorEnd: null,
         borderWidth: 0,
         borderColor: '#000000',
       }],
@@ -1583,7 +1627,8 @@
           colors:   hexColors,
           uncertain: Array(nLabels).fill(false).map((_, idx) =>
             !!(ds.uncertainIndices || []).includes(idx)),
-          gradient:    false,
+          gradient:         false,
+          gradientColorEnd: null,
           borderWidth: 0,
           borderColor: '#000000',
         };
@@ -1710,8 +1755,13 @@
         const ds = cfg.datasets[idx];
         if (!ds?.gradient) return;
         const c = ds.color || PALETTE[idx % PALETTE.length];
+        const endColor = ds.gradientColorEnd || null;
         const grad = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-        if (cfg.type === 'area') {
+        if (endColor) {
+          // User-defined two-colour gradient
+          grad.addColorStop(0, c);
+          grad.addColorStop(1, endColor);
+        } else if (cfg.type === 'area') {
           grad.addColorStop(0, c + '99');
           grad.addColorStop(1, c + '05');
         } else {
@@ -1793,6 +1843,7 @@
         ctx.save();
         ctx.font      = `600 ${dlFs}px ${s.title.fontFamily || "'Space Grotesk',sans-serif"}`;
         ctx.fillStyle = cfg.options.dataLabelColor || '#333333';
+        _dataLabelHits = [];
 
         chart.data.datasets.forEach((ds, di) => {
           const meta = chart.getDatasetMeta(di);
@@ -1801,33 +1852,41 @@
             const raw = ds.data[i];
             if (raw === null || raw === undefined) return;
             const lbl = fmtVal(raw);
+            let lx, ly;
             if (isArc) {
               const mid = (el.startAngle + el.endAngle) / 2;
               const r   = (el.innerRadius + el.outerRadius) / 2;
               ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-              ctx.fillText(lbl, el.x + r * Math.cos(mid), el.y + r * Math.sin(mid));
+              lx = el.x + r * Math.cos(mid); ly = el.y + r * Math.sin(mid);
+              ctx.fillText(lbl, lx, ly);
             } else if (isHoriz) {
               ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-              ctx.fillText(lbl, el.x + 5, el.y);
+              lx = el.x + 5; ly = el.y;
+              ctx.fillText(lbl, lx, ly);
             } else {
-              // Vertical bar — respect vlpos
               const base = el.base ?? 0;
               const tip  = el.y;
               ctx.textAlign = 'center';
               if (vlpos === 'center') {
                 ctx.textBaseline = 'middle';
-                ctx.fillText(lbl, el.x, (tip + base) / 2);
+                lx = el.x; ly = (tip + base) / 2;
               } else if (vlpos === 'bottom') {
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(lbl, el.x, base - 3);
-              } else { // top / above
+                lx = el.x; ly = base - 3;
+              } else {
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(lbl, el.x, tip - 4);
+                lx = el.x; ly = tip - 4;
               }
+              ctx.fillText(lbl, lx, ly);
             }
+            // Store hit box (padding of 6px around text)
+            const tw = ctx.measureText(lbl).width;
+            _dataLabelHits.push({ x: lx - tw/2 - 6, y: ly - dlFs/2 - 6, w: tw + 12, h: dlFs + 12, datasetIndex: di, index: i });
           });
         });
         ctx.restore();
+      } else {
+        _dataLabelHits = [];
       }
     },
   });
@@ -2004,7 +2063,10 @@
     if (cfg.type === 'waffle') { renderWaffle(); return; }
     const canvas  = document.getElementById('chart-canvas');
     const wrapper = document.getElementById('canvas-wrapper');
-    wrapper.style.background = cfg.options.canvasBg || '#ffffff';
+    const _bg = cfg.options.canvasBg || '#ffffff';
+    wrapper.style.background = _bg === 'transparent'
+      ? 'repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px'
+      : _bg;
 
     const isArc      = cfg.type === 'pie' || cfg.type === 'doughnut';
     const chartType  = (cfg.type === 'area') ? 'line' : cfg.type;
@@ -2143,7 +2205,10 @@
   function renderWaffle() {
     const canvas  = document.getElementById('chart-canvas');
     const wrapper = document.getElementById('canvas-wrapper');
-    wrapper.style.background = cfg.options.canvasBg || '#ffffff';
+    const _waffleBg = cfg.options.canvasBg || '#ffffff';
+    wrapper.style.background = _waffleBg === 'transparent'
+      ? 'repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px'
+      : _waffleBg;
 
     // Destroy any existing Chart.js instance
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
@@ -2155,8 +2220,12 @@
     const ctx = canvas.getContext('2d');
 
     // Background
-    ctx.fillStyle = cfg.options.canvasBg || '#ffffff';
-    ctx.fillRect(0, 0, W, H);
+    if (_waffleBg !== 'transparent') {
+      ctx.fillStyle = _waffleBg;
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
 
     const s = cfg.style;
 
@@ -2270,6 +2339,7 @@
   let selectedZone  = null;
   let hoverZone     = null;
   let isDragging    = false;
+  let _dataLabelHits = [];  // [{x,y,w,h,datasetIndex,index}] updated each render
   let dragZone      = null;
   let dragCurrentPos = null;
   let dragStartPos   = null;
@@ -2323,6 +2393,14 @@
 
   // ── Hit detection using Chart.js internal layout boxes ──
   function getHitZone(cx, cy) {
+    // 0. Data labels (if visible) — check before series elements
+    if (cfg.options.showDataLabels && _dataLabelHits.length) {
+      for (const hit of _dataLabelHits) {
+        if (cx >= hit.x && cx <= hit.x + hit.w && cy >= hit.y && cy <= hit.y + hit.h)
+          return { type: 'datalabel', datasetIndex: hit.datasetIndex, index: hit.index };
+      }
+    }
+
     // 1. Data elements (Chart.js only — not available for waffle)
     if (chartInstance) {
       const chart = document.getElementById('chart-canvas');
@@ -2829,6 +2907,7 @@
       : ({
           title:'Title', xlabel:'X-Axis Label', ylabel:'Y-Axis Label',
           legend:'Legend', series:'Data Point', xticks:'X Tick Labels', yticks:'Y Tick Labels',
+          datalabel:'Value Labels',
         }[zone.type] || 'Element');
     // Position inspector
     const wrap = document.getElementById('canvas-wrapper');
@@ -2916,7 +2995,12 @@
     }
 
     if (zone.type === 'legend') {
+      const legendTitle = cfg.options.legendTitle || '';
       return `
+        <div class="insp-field"><span class="insp-label">Legend title</span>
+          <input class="insp-input" value="${escHtml(legendTitle)}" placeholder="(none)"
+            onfocus="pushUndo()"
+            oninput="cfg.options.legendTitle=this.value;const li=document.getElementById('legend-title-input');if(li)li.value=this.value;render()" /></div>
         ${s.legend.x == null ? `<div class="insp-field"><span class="insp-label">Position</span>
           <select class="insp-select" onchange="pushUndo();cfg.style.legend.position=this.value;render()">
             ${['top','bottom','left','right'].map(p=>
@@ -2938,6 +3022,39 @@
         <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
           onclick="resetElementStyle('legend')">↺ Reset style to defaults</button></div>
         <div class="insp-hint">⠿ Drag freely to reposition</div>`;
+    }
+
+    if (zone.type === 'datalabel') {
+      const dlFs  = cfg.style.dataLabels?.fontSize || 11;
+      const dlCol = cfg.options.dataLabelColor || '#333333';
+      const vlpos = cfg.options.valueLabelPos || 'top';
+      const fmt   = cfg.options.labelFormat   || 'number';
+      const isArcL = cfg.type === 'pie' || cfg.type === 'doughnut';
+      const isBar  = cfg.type === 'bar' && !cfg.horizontal;
+      return `
+        <div class="insp-row">
+          <div class="insp-field"><span class="insp-label">Font size</span>
+            <input class="insp-input" type="number" min="7" max="32" value="${dlFs}"
+              onfocus="pushUndo()"
+              oninput="cfg.style.dataLabels=cfg.style.dataLabels||{};cfg.style.dataLabels.fontSize=+this.value;document.getElementById('dlabel-font-size').value=this.value;render()" /></div>
+          <div class="insp-field" style="flex:0 0 auto"><span class="insp-label">Colour</span>
+            <span class="colour-dot lg bordered" style="background:${dlCol}"
+              onclick="openColorPicker(this,'${dlCol}',v=>{pushUndo();cfg.options.dataLabelColor=v;this.style.background=v;const d=document.getElementById('dlabel-color-dot');if(d)d.style.background=v;render()})"
+              title="${dlCol}"></span></div>
+        </div>
+        ${isBar ? `<div class="insp-field"><span class="insp-label">Position</span>
+          <select class="insp-select" onchange="pushUndo();cfg.options.valueLabelPos=this.value;render()">
+            <option value="top"${vlpos==='top'?' selected':''}>Above bar</option>
+            <option value="center"${vlpos==='center'?' selected':''}>Centre of bar</option>
+            <option value="bottom"${vlpos==='bottom'?' selected':''}>Below bar</option>
+          </select></div>` : ''}
+        <div class="insp-field"><span class="insp-label">Format</span>
+          <select class="insp-select" onchange="pushUndo();cfg.options.labelFormat=this.value;render()">
+            <option value="number"${fmt==='number'?' selected':''}>Number</option>
+            <option value="percent"${fmt==='percent'?' selected':''}>Percent (%)</option>
+            <option value="currency"${fmt==='currency'?' selected':''}>Currency ($)</option>
+          </select></div>
+        <div class="insp-hint">Applies to all value labels</div>`;
     }
 
     if (zone.type === 'series') {
@@ -3024,8 +3141,10 @@
     exp.height = canvas.height * scale;
     const ctx  = exp.getContext('2d');
     ctx.scale(scale, scale);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (bg !== 'transparent') {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     ctx.drawImage(canvas, 0, 0);
 
     const mime = fmt === 'jpeg' ? 'image/jpeg' : fmt === 'webp' ? 'image/webp' : 'image/png';
@@ -3043,6 +3162,126 @@
         navBtn.innerHTML   = '⬇&nbsp; Download PNG';
         navBtn.classList.remove('saved');
       }, 1800);
+    }
+  }
+
+  /* ─────────────────────────────────────────────
+     SAVE / LOAD PROGRESS
+  ───────────────────────────────────────────── */
+  async function saveChartProgress() {
+    if (!currentUser || !db) return;
+    const btn = document.getElementById('btn-save-nav');
+    if (!btn) return;
+    btn.disabled = true;
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-sm"></span>';
+    try {
+      const docId = cfg._savedId || db.collection('charts').doc().id;
+      cfg._savedId = docId;
+      const thumb = (() => {
+        try {
+          const c = document.getElementById('chart-canvas');
+          const exp = document.createElement('canvas');
+          exp.width = Math.round(c.width / 4); exp.height = Math.round(c.height / 4);
+          exp.getContext('2d').drawImage(c, 0, 0, exp.width, exp.height);
+          return exp.toDataURL('image/jpeg', 0.5);
+        } catch(e) { return ''; }
+      })();
+      await db.collection('charts').doc(docId).set({
+        userId:    currentUser.uid,
+        title:     cfg.title || 'Untitled',
+        cfg:       JSON.stringify(cfg),
+        uploadedSrc: uploadedSrc || null,
+        thumb,
+        savedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      btn.classList.add('saved');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Saved!`;
+      setTimeout(() => {
+        btn.classList.remove('saved');
+        btn.innerHTML = origHTML;
+        btn.disabled = false;
+      }, 2000);
+    } catch (err) {
+      console.error('Save failed:', err);
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+      alert('Save failed: ' + err.message);
+    }
+  }
+
+  async function openSavedCharts() {
+    if (!currentUser || !db) return;
+    const modal = document.getElementById('saved-charts-modal');
+    const list  = document.getElementById('saved-charts-list');
+    modal.style.cssText = modal.style.cssText.replace(/display:[^;]+/, 'display:flex');
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Loading…</div>';
+    try {
+      const snap = await db.collection('charts')
+        .where('userId', '==', currentUser.uid)
+        .orderBy('savedAt', 'desc')
+        .limit(30)
+        .get().catch(async () => {
+          // Fallback without ordering (no composite index yet)
+          return db.collection('charts').where('userId','==',currentUser.uid).limit(30).get();
+        });
+      if (snap.empty) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No saved charts yet.</div>';
+        return;
+      }
+      list.innerHTML = snap.docs.map(doc => {
+        const d = doc.data();
+        const ts = d.savedAt?.toDate?.()?.toLocaleDateString() || '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:6px;background:var(--bg);cursor:pointer;border:1px solid var(--border-lt)"
+            onmouseenter="this.style.borderColor='var(--indigo)'" onmouseleave="this.style.borderColor='var(--border-lt)'"
+            onclick="loadSavedChart('${doc.id}')">
+          ${d.thumb ? `<img src="${d.thumb}" style="width:56px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0">` : '<div style="width:56px;height:40px;background:var(--bg-card);border-radius:4px;flex-shrink:0"></div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(d.title||'Untitled')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${ts}</div>
+          </div>
+          <button onclick="event.stopPropagation();deleteSavedChart('${doc.id}',this.closest('[onclick]'))"
+            style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;line-height:1;padding:4px" title="Delete">✕</button>
+        </div>`;
+      }).join('');
+    } catch (err) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:#ef4444;font-size:13px">Error: ${escHtml(err.message)}</div>`;
+    }
+  }
+
+  async function loadSavedChart(docId) {
+    if (!db) return;
+    document.getElementById('saved-charts-modal').style.display = 'none';
+    try {
+      const snap = await db.collection('charts').doc(docId).get();
+      if (!snap.exists) { alert('Chart not found.'); return; }
+      const d = snap.data();
+      const loaded = JSON.parse(d.cfg);
+      cfg = loaded;
+      if (d.uploadedSrc) {
+        uploadedSrc = d.uploadedSrc;
+        document.getElementById('compare-img').src = uploadedSrc;
+        document.getElementById('btn-compare').disabled = false;
+      }
+      undoStack = []; redoStack = [];
+      updateUndoButtons();
+      closeTooltip();
+      closeInspector();
+      refreshEditUI();
+      _applyFigSizeToWrapper();
+      render();
+    } catch (err) {
+      alert('Load failed: ' + err.message);
+    }
+  }
+
+  async function deleteSavedChart(docId, rowEl) {
+    if (!confirm('Delete this saved chart?')) return;
+    try {
+      await db.collection('charts').doc(docId).delete();
+      rowEl?.remove();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
     }
   }
 
@@ -3126,6 +3365,33 @@
     render();
   }
 
+  function applyRatio(w, h) {
+    pushUndo();
+    const wrap = document.getElementById('canvas-wrapper');
+    const currentW = cfg.options.figWidth || wrap.clientWidth || 600;
+    const newH = Math.round(currentW * h / w);
+    cfg.options.figWidth  = currentW;
+    cfg.options.figHeight = newH;
+    document.getElementById('fig-width').value  = currentW;
+    document.getElementById('fig-height').value = newH;
+    updateRatioHighlight();
+    _applyFigSizeToWrapper();
+    render();
+  }
+
+  function updateRatioHighlight() {
+    const w = +document.getElementById('fig-width').value;
+    const h = +document.getElementById('fig-height').value;
+    const RATIOS = [['1:1',1,1],['4:3',4,3],['3:2',3,2],['16:9',16,9],['2:3',2,3],['9:16',9,16]];
+    document.querySelectorAll('#ratio-btns .seg-btn').forEach(btn => {
+      const r = RATIOS.find(x => x[0] === btn.dataset.ratio);
+      if (!r || !w || !h) { btn.classList.remove('active'); return; }
+      const ratio = w / h;
+      const target = r[1] / r[2];
+      btn.classList.toggle('active', Math.abs(ratio - target) < 0.02);
+    });
+  }
+
   function _applyFigSizeToWrapper() {
     const wrap = document.getElementById('canvas-wrapper');
     const w = cfg.options.figWidth;
@@ -3194,7 +3460,11 @@
             </div>
             <div class="series-style-row">
               ${canGradient ? `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer">
-                <input type="checkbox" ${ds.gradient?'checked':''} onchange="pushUndo();cfg.datasets[${i}].gradient=this.checked;render()" />Gradient</label>` : ''}
+                <input type="checkbox" ${ds.gradient?'checked':''} onchange="pushUndo();cfg.datasets[${i}].gradient=this.checked;buildColourSection();render()" />Gradient</label>
+              ${ds.gradient ? `<span class="colour-dot" id="grad-end-dot-${i}"
+                  style="background:${ds.gradientColorEnd||'#ffffff'};width:18px;height:18px;border:1px dashed #94a3b8"
+                  title="Gradient end colour"
+                  onclick="openColorPicker(this,'${ds.gradientColorEnd||'#ffffff'}',v=>{pushUndo();cfg.datasets[${i}].gradientColorEnd=v;this.style.background=v;render()})"></span>` : ''}` : ''}
               <span class="series-style-label">Border</span>
               <input class="series-style-input" type="number" min="0" max="10" value="${bw}" title="Border width (px)"
                 onfocus="pushUndo()" oninput="cfg.datasets[${i}].borderWidth=+this.value;render()" />
@@ -3231,9 +3501,18 @@
 
   function setCanvasBg(val) {
     pushUndo();
+    if (val !== 'transparent') cfg.options._prevBg = val;
     cfg.options.canvasBg = val;
-    document.getElementById('canvas-bg-dot').style.background = val;
-    document.getElementById('canvas-wrapper').style.background = val;
+    const isTransp = val === 'transparent';
+    const dot = document.getElementById('canvas-bg-dot');
+    if (dot) dot.style.background = isTransp ? 'linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%,#ccc),linear-gradient(45deg,#ccc 25%,#fff 25%,#fff 75%,#ccc 75%,#ccc)' : val;
+    const wrap = document.getElementById('canvas-wrapper');
+    if (wrap) wrap.style.background = isTransp
+      ? 'repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 16px 16px'
+      : val;
+    const cb = document.getElementById('tog-transparent-bg');
+    if (cb) cb.checked = isTransp;
+    render();
   }
 
   /* ─────────────────────────────────────────────
@@ -3409,6 +3688,7 @@
       b.classList.toggle('active', b.dataset.val === lpos));
     if (cfg.options.figWidth)  document.getElementById('fig-width').value  = cfg.options.figWidth;
     if (cfg.options.figHeight) document.getElementById('fig-height').value = cfg.options.figHeight;
+    updateRatioHighlight();
 
     // ── Values tab ────────────────────────────────────────────
     document.getElementById('tog-dlabels').checked                  = !!cfg.options.showDataLabels;
@@ -3431,7 +3711,13 @@
 
     // ── Style tab ─────────────────────────────────────────────
     const bg = cfg.options.canvasBg || '#ffffff';
-    document.getElementById('canvas-bg-dot').style.background = bg;
+    const isTranspBg = bg === 'transparent';
+    const bgDot = document.getElementById('canvas-bg-dot');
+    if (bgDot) bgDot.style.background = isTranspBg
+      ? 'linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%,#ccc),linear-gradient(45deg,#ccc 25%,#fff 25%,#fff 75%,#ccc 75%,#ccc)'
+      : bg;
+    const transpCb = document.getElementById('tog-transparent-bg');
+    if (transpCb) transpCb.checked = isTranspBg;
 
     // ── Export tab ────────────────────────────────────────────
     const exp = cfg.exportOpts || {};
