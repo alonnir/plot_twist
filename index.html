@@ -874,12 +874,19 @@
       <!-- ── LEFT: Upload ── -->
       <aside class="upload-panel" id="upload-panel">
         <!-- Collapsed tab — visible only when panel is collapsed -->
-        <div id="upload-collapse-tab" onclick="expandUploadPanel()" title="Upload a new image">
+        <div id="upload-collapse-tab" onclick="expandUploadPanel()" title="Expand upload panel">
+          <span style="font-size:16px;line-height:1;opacity:.7;">›</span>
           <img id="upload-tab-thumb" src="" alt="" />
           <span id="upload-tab-label">Upload</span>
         </div>
 
-        <div class="panel-heading">Upload Chart</div>
+        <div class="panel-heading" style="display:flex;align-items:center;justify-content:space-between;">
+          Upload Chart
+          <button id="upload-panel-toggle" onclick="collapseUploadPanel()" title="Collapse panel"
+            style="background:none;border:none;color:var(--text-dim);padding:2px 4px;border-radius:4px;line-height:1;font-size:14px;cursor:pointer;"
+            onmouseover="this.style.color='var(--indigo)';this.style.background='var(--indigo-bg)'"
+            onmouseout="this.style.color='var(--text-dim)';this.style.background='none'">‹</button>
+        </div>
 
         <div class="drop-zone" id="drop-zone"
              onclick="document.getElementById('file-input').click()"
@@ -1742,12 +1749,14 @@
     const panel = document.getElementById('upload-panel');
     if (!panel) return;
     panel.classList.add('collapsed');
-    // Mirror the uploaded thumbnail into the tab icon
+    // Mirror the uploaded thumbnail into the tab icon (if available)
     const thumb = document.getElementById('dz-thumb');
     const tabThumb = document.getElementById('upload-tab-thumb');
-    if (thumb && thumb.src && tabThumb) {
+    if (thumb && thumb.src && thumb.src !== window.location.href && tabThumb) {
       tabThumb.src = thumb.src;
       tabThumb.style.display = 'block';
+    } else if (tabThumb) {
+      tabThumb.style.display = 'none';
     }
   }
 
