@@ -1603,9 +1603,12 @@
   async function handleAuthState(user) {
     if (user) {
       try {
-        const snap = await db.collection('allowedUsers')
-          .where('email', '==', user.email).get();
-        if (!snap.empty) {
+        const domain = user.email.split('@')[1];
+        const [emailSnap, domainSnap] = await Promise.all([
+          db.collection('allowedUsers').where('email', '==', user.email).get(),
+          db.collection('allowedUsers').where('email', '==', domain).get(),
+        ]);
+        if (!emailSnap.empty || !domainSnap.empty) {
           grantAccess(user);
         } else {
           const cached = localStorage.getItem('cr_allowed');
