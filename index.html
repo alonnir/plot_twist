@@ -7,7 +7,7 @@
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#060b18" />
+  <meta name="theme-color" content="#0e1015" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -31,23 +31,23 @@
        VARIABLES & RESET
     ═══════════════════════════════════════════════════════════ */
     :root {
-      --bg:        #060b18;
-      --bg-panel:  #0d1424;
-      --bg-card:   #131d30;
-      --bg-input:  #192236;
-      --border:    #1e2d45;
-      --border-lt: #253650;
+      --bg:        #0e1015;
+      --bg-panel:  #161923;
+      --bg-card:   #1d2130;
+      --bg-input:  #232840;
+      --border:    #2e3650;
+      --border-lt: #3a4565;
 
-      --indigo:    #818cf8;
-      --indigo-dk: #6366f1;
-      --indigo-bg: rgba(99,102,241,0.12);
-      --success:   #34d399;
-      --danger:    #f87171;
-      --warning:   #fbbf24;
+      --indigo:    #b09cf8;
+      --indigo-dk: #8b7cf6;
+      --indigo-bg: rgba(139,124,246,0.16);
+      --success:   #4ade80;
+      --danger:    #fb7185;
+      --warning:   #fcd34d;
 
-      --text:      #e2e8f0;
-      --text-muted:#94a3b8;
-      --text-dim:  #64748b;
+      --text:      #f0f4ff;
+      --text-muted:#aab8d4;
+      --text-dim:  #7a91b8;
 
       --nav-h:  52px;
       --left-w: 272px;
@@ -656,8 +656,8 @@
       position: fixed;    /* lives in body — outside overlay canvas z-index battle */
       pointer-events: auto;
       z-index: 9999;
-      background: #0f172a;
-      border: 1px solid #334155;
+      background: var(--bg-card);
+      border: 1px solid var(--border-lt);
       border-radius: 7px;
       padding: 9px 12px 7px;
       font-size: 12px;
@@ -695,8 +695,8 @@
       font-family: 'Space Grotesk', sans-serif; cursor: text;
       transition: border-color .15s, background .15s;
     }
-    .tt-val-input:hover  { border-color: #334155; }
-    .tt-val-input:focus  { border-color: #6366f1; background: rgba(99,102,241,.12); }
+    .tt-val-input:hover  { border-color: var(--border-lt); }
+    .tt-val-input:focus  { border-color: var(--indigo-dk); background: var(--indigo-bg); }
     /* hide spin arrows */
     .tt-val-input::-webkit-outer-spin-button,
     .tt-val-input::-webkit-inner-spin-button { -webkit-appearance: none; }
@@ -1025,12 +1025,14 @@
                 <button class="type-btn" data-type="area" onclick="setChartType('area')">
                   <svg viewBox="0 0 24 24" fill="currentColor" opacity=".6"><polygon points="2,20 2,12 8,7 13,11 22,3 22,20"/></svg>Area
                 </button>
+                <!-- pie + doughnut hidden for now
                 <button class="type-btn" data-type="pie" onclick="setChartType('pie')">
                   <svg viewBox="0 0 24 24"><path d="M12 2 A10 10 0 0 1 22 12 L12 12 Z" fill="#818cf8"/><path d="M12 12 L22 12 A10 10 0 0 1 4 19 Z" fill="#34d399"/><path d="M4 19 A10 10 0 0 1 12 2 L12 12 Z" fill="#fbbf24"/></svg>Pie
                 </button>
                 <button class="type-btn" data-type="doughnut" onclick="setChartType('doughnut')">
                   <svg viewBox="0 0 24 24"><path d="M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z M12 7 A5 5 0 1 1 12 17 A5 5 0 1 1 12 7 Z" fill="currentColor" opacity=".7"/></svg>Donut
                 </button>
+                -->
                 <button class="type-btn" data-type="waffle" onclick="setChartType('waffle')">
                   <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9.5" y="2" width="5" height="5" rx="1"/><rect x="17" y="2" width="5" height="5" rx="1"/><rect x="2" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><rect x="17" y="9.5" width="5" height="5" rx="1"/><rect x="2" y="17" width="5" height="5" rx="1"/><rect x="9.5" y="17" width="5" height="5" rx="1"/><rect x="17" y="17" width="5" height="5" rx="1"/></svg>Waffle
                 </button>
@@ -1397,8 +1399,8 @@
 
   /* ── Default colours ── */
   const PALETTE = [
-    '#6366f1','#f59e0b','#10b981','#ef4444',
-    '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
+    '#8b7cf6','#fb923c','#4ade80','#fb7185',
+    '#38bdf8','#e879f9','#facc15','#2dd4bf',
   ];
 
   /* ── State ── */
@@ -1422,8 +1424,8 @@
       datasets: [{
         label: 'Series 1',
         data:  [65, 59, 80, 81, 56, 72],
-        color: '#6366f1',
-        colors: Array(6).fill('#6366f1'),
+        color: '#8b7cf6',
+        colors: Array(6).fill('#8b7cf6'),
         uncertain: Array(6).fill(false),
         gradient: false,
         gradientColorEnd: null,
@@ -2075,7 +2077,7 @@
     // Build rows for every dataset
     let rows = '';
     cfg.datasets.forEach((ds, di) => {
-      const color = (ds.colors ?? [])[dataIndex] ?? ds.color ?? '#6366f1';
+      const color = (ds.colors ?? [])[dataIndex] ?? ds.color ?? '#8b7cf6';
       const value = ds.data[dataIndex];
       if (value === undefined || value === null || value === '') return;
 
@@ -2697,17 +2699,17 @@
       const b = getZoneBounds(selectedZone);
       if (b) {
         const w = b[2]-b[0], h = b[3]-b[1];
-        ctx.fillStyle = 'rgba(99,102,241,0.07)';
+        ctx.fillStyle = 'rgba(139,124,246,0.09)';
         rrect(ctx, b[0], b[1], w, h, 3);
         ctx.fill();
-        ctx.strokeStyle = '#818cf8';
+        ctx.strokeStyle = '#b09cf8';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([5,3]);
         rrect(ctx, b[0]+1, b[1]+1, w-2, h-2, 3);
         ctx.stroke();
         ctx.setLineDash([]);
         // Corner handles
-        ctx.fillStyle = '#818cf8';
+        ctx.fillStyle = '#b09cf8';
         [[b[0],b[1]],[b[2],b[1]],[b[0],b[3]],[b[2],b[3]]].forEach(([x,y])=>{
           ctx.fillRect(x-3,y-3,6,6);
         });
@@ -4201,7 +4203,7 @@ Rules:
       }
 
       // Normalise colours
-      const FALLBACKS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6'];
+      const FALLBACKS = ['#8b7cf6','#fb923c','#4ade80','#fb7185','#38bdf8','#e879f9'];
       (parsed.datasets || []).forEach((ds, i) => {
         const n       = (parsed.labels || []).length || 1;
         const fallback= FALLBACKS[i % FALLBACKS.length];
@@ -4237,8 +4239,8 @@ Rules:
 <script>
 /* ── Custom colour picker ──────────────────────────────── */
 const CP_PRESETS = [
-  '#6366f1','#818cf8','#3b82f6','#06b6d4','#10b981','#22c55e','#a3e635','#fbbf24','#f97316',
-  '#ef4444','#ec4899','#8b5cf6','#f1f5f9','#cbd5e1','#94a3b8','#475569','#1e293b','#000000',
+  '#8b7cf6','#b09cf8','#38bdf8','#06b6d4','#4ade80','#22c55e','#a3e635','#facc15','#fb923c',
+  '#fb7185','#e879f9','#f472b6','#f1f5f9','#cbd5e1','#94a3b8','#475569','#1e293b','#000000',
 ];
 
 let _cpCallback = null;
