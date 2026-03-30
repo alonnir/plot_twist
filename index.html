@@ -60,6 +60,36 @@
       font-size: 14px;
       color: var(--text);
     }
+    /* ── LIGHT MODE overrides ── */
+    body.light-mode {
+      --bg:        #f3f5fb;
+      --bg-panel:  #ffffff;
+      --bg-card:   #eaecf6;
+      --bg-input:  #dfe3f2;
+      --border:    #cdd3e8;
+      --border-lt: #b8c1db;
+
+      --indigo:    #6c5ce0;
+      --indigo-dk: #5a4dd4;
+      --indigo-bg: rgba(108,92,224,0.10);
+      --success:   #16a34a;
+      --danger:    #dc2626;
+      --warning:   #b45309;
+
+      --text:      #18213a;
+      --text-muted:#4a5778;
+      --text-dim:  #7a87a8;
+
+      --shadow: 0 4px 24px rgba(60,80,140,0.12);
+    }
+    body.light-mode .stage-body {
+      box-shadow: 0 8px 40px rgba(60,80,140,0.12);
+    }
+    body.light-mode .spinner {
+      border-color: var(--border);
+      border-top-color: var(--indigo);
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); overflow: hidden; height: 100vh; }
     button { cursor: pointer; font-family: inherit; font-size: 14px; }
@@ -168,6 +198,74 @@
       font-size: 13px; transition: all .15s;
     }
     .btn-signout:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-nav-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px;
+      background: transparent; border: 1px solid var(--border-lt);
+      border-radius: var(--r); color: var(--text-muted);
+      transition: all .15s; cursor: pointer;
+    }
+    .btn-nav-icon:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-bg); }
+
+    /* Settings modal */
+    .settings-modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 900;
+      align-items: center; justify-content: center;
+    }
+    .settings-modal-overlay.open { display: flex; }
+    .settings-modal {
+      background: var(--bg-card); border-radius: 14px;
+      width: 360px; max-width: 95vw;
+      border: 1px solid var(--border-lt);
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      overflow: hidden;
+    }
+    .settings-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .settings-title { font-weight: 700; font-size: 15px; }
+    .settings-close {
+      background: none; border: none; color: var(--text-dim);
+      font-size: 20px; line-height: 1; padding: 2px 6px;
+      border-radius: 6px; cursor: pointer; transition: color .15s;
+    }
+    .settings-close:hover { color: var(--text); }
+    .settings-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 20px; }
+    .settings-group { display: flex; flex-direction: column; gap: 12px; }
+    .settings-group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .settings-row-info { display: flex; flex-direction: column; gap: 2px; }
+    .settings-row-name { font-size: 14px; font-weight: 500; }
+    .settings-row-desc { font-size: 12px; color: var(--text-muted); }
+
+    /* Theme toggle pill */
+    .theme-toggle {
+      display: flex; background: var(--bg-input);
+      border: 1px solid var(--border-lt); border-radius: 999px;
+      padding: 3px; gap: 2px;
+    }
+    .theme-opt {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 999px;
+      border: none; background: none;
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      cursor: pointer; transition: all .18s;
+    }
+    .theme-opt.active {
+      background: var(--bg-card); color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.18);
+    }
+    body.light-mode .theme-opt.active {
+      box-shadow: 0 1px 4px rgba(60,80,140,0.18);
+    }
     .btn-save-nav {
       display: flex; align-items: center; gap: 5px;
       padding: 5px 11px;
@@ -852,9 +950,39 @@
         </button>
         <span class="nav-user" id="nav-user-name"></span>
         <img class="nav-avatar" id="nav-avatar" src="" alt="avatar" onerror="this.style.display='none'" />
+        <button class="btn-nav-icon" onclick="openSettings()" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
         <button class="btn-signout" onclick="doSignOut()">Sign out</button>
       </div>
     </header>
+
+    <!-- SETTINGS MODAL -->
+    <div class="settings-modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+      <div class="settings-modal">
+        <div class="settings-header">
+          <span class="settings-title">Settings</span>
+          <button class="settings-close" onclick="closeSettings()">×</button>
+        </div>
+        <div class="settings-body">
+          <div class="settings-group">
+            <div class="settings-group-label">Appearance</div>
+            <div class="settings-row">
+              <div class="settings-row-info">
+                <span class="settings-row-name">Theme</span>
+                <span class="settings-row-desc">Choose between light and dark mode</span>
+              </div>
+              <div class="theme-toggle" id="theme-toggle">
+                <button class="theme-opt" id="theme-opt-dark" onclick="setTheme('dark')">🌙 Dark</button>
+                <button class="theme-opt" id="theme-opt-light" onclick="setTheme('light')">☀️ Light</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- SAVED CHARTS MODAL -->
     <div id="saved-charts-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
@@ -1536,6 +1664,34 @@
   }
 
   function doSignOut() { auth.signOut(); hideAllScreens(); show('login-screen'); }
+
+  /* ── Settings & theme ─────────────────────────────────── */
+  function openSettings() {
+    document.getElementById('settings-modal').classList.add('open');
+    _syncThemeToggle();
+  }
+  function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('open');
+  }
+  function setTheme(mode) {
+    if (mode === 'light') {
+      document.body.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+    }
+    localStorage.setItem('pt-theme', mode);
+    _syncThemeToggle();
+  }
+  function _syncThemeToggle() {
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('theme-opt-dark').classList.toggle('active', !isLight);
+    document.getElementById('theme-opt-light').classList.toggle('active', isLight);
+  }
+  // Apply saved theme immediately
+  (function() {
+    const saved = localStorage.getItem('pt-theme');
+    if (saved === 'light') document.body.classList.add('light-mode');
+  })();
   function showError(msg) { const el = document.getElementById('login-error'); el.textContent = msg; el.style.display = ''; }
   function hideError() { document.getElementById('login-error').style.display = 'none'; }
 
