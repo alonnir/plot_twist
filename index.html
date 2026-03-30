@@ -180,8 +180,7 @@
 
     /* ── MAIN 3-COLUMN ── */
     .editor-main {
-      display: grid;
-      grid-template-columns: var(--left-w) 1fr var(--right-w);
+      display: flex; /* flex so upload-panel width drives layout naturally */
       flex: 1; overflow: hidden;
     }
 
@@ -192,6 +191,34 @@
       background: var(--bg-panel); border-right: 1px solid var(--border);
       padding: 18px 14px; display: flex; flex-direction: column; gap: 12px;
       overflow-y: auto;
+      width: var(--left-w);
+      transition: width .25s cubic-bezier(.4,0,.2,1),
+                  padding .25s cubic-bezier(.4,0,.2,1);
+      flex-shrink: 0;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .upload-panel.collapsed {
+      width: 36px; padding: 0; overflow-y: hidden; cursor: pointer;
+    }
+    .upload-panel.collapsed > *:not(#upload-collapse-tab) { display: none !important; }
+    #upload-collapse-tab {
+      display: none;
+      position: absolute; inset: 0;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; cursor: pointer;
+      color: var(--text-muted);
+    }
+    .upload-panel.collapsed #upload-collapse-tab { display: flex; }
+    #upload-collapse-tab:hover { color: var(--indigo); background: var(--indigo-bg); }
+    #upload-tab-thumb {
+      width: 26px; height: 26px; border-radius: 4px; object-fit: cover;
+      border: 1px solid var(--border-lt); display: none;
+    }
+    #upload-tab-label {
+      writing-mode: vertical-rl; text-orientation: mixed;
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; user-select: none;
     }
     .panel-heading {
       font-size: 10px; font-weight: 700; letter-spacing: .1em;
@@ -253,6 +280,7 @@
     .chart-stage {
       background: var(--bg); padding: 18px;
       display: flex; flex-direction: column; overflow: hidden;
+      flex: 1; min-width: 0;
     }
     .stage-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -375,6 +403,7 @@
     .edit-sidebar {
       background: var(--bg-panel); border-left: 1px solid var(--border);
       display: flex; flex-direction: column; overflow: hidden;
+      width: var(--right-w); flex-shrink: 0;
     }
     .edit-sidebar-heading {
       padding: 18px 16px 0;
@@ -843,7 +872,13 @@
     <div class="editor-main">
 
       <!-- ── LEFT: Upload ── -->
-      <aside class="upload-panel">
+      <aside class="upload-panel" id="upload-panel">
+        <!-- Collapsed tab — visible only when panel is collapsed -->
+        <div id="upload-collapse-tab" onclick="expandUploadPanel()" title="Upload a new image">
+          <img id="upload-tab-thumb" src="" alt="" />
+          <span id="upload-tab-label">Upload</span>
+        </div>
+
         <div class="panel-heading">Upload Chart</div>
 
         <div class="drop-zone" id="drop-zone"
@@ -1699,6 +1734,27 @@
     closeInspector();
     render();
     refreshEditUI();
+    // Auto-collapse upload panel once chart is ready
+    collapseUploadPanel();
+  }
+
+  function collapseUploadPanel() {
+    const panel = document.getElementById('upload-panel');
+    if (!panel) return;
+    panel.classList.add('collapsed');
+    // Mirror the uploaded thumbnail into the tab icon
+    const thumb = document.getElementById('dz-thumb');
+    const tabThumb = document.getElementById('upload-tab-thumb');
+    if (thumb && thumb.src && tabThumb) {
+      tabThumb.src = thumb.src;
+      tabThumb.style.display = 'block';
+    }
+  }
+
+  function expandUploadPanel() {
+    const panel = document.getElementById('upload-panel');
+    if (!panel) return;
+    panel.classList.remove('collapsed');
   }
 
   /* ─────────────────────────────────────────────
@@ -3300,6 +3356,7 @@
       refreshEditUI();
       _applyFigSizeToWrapper();
       render();
+      collapseUploadPanel();
     } catch (err) {
       alert('Load failed: ' + err.message);
     }
