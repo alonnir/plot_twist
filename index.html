@@ -2927,10 +2927,18 @@
     const rx = Math.round(x), ry = Math.round(y);
 
     if (type === 'title') {
-      cfg.style.title.x = rx; cfg.style.title.y = ry;
       dragTitleHidden = false;
-      chartInstance.options.layout.padding.top = 0;
-      chartInstance.update('none');
+      // Snap back to default if dropped in the top padding zone
+      const titlePadH = cfg.style.title.fontSize + 10;
+      // Snap back to default if dropped in the top padding zone
+      if (ry <= titlePadH) {
+        cfg.style.title.x = null;
+        cfg.style.title.y = null;
+      } else {
+        cfg.style.title.x = rx;
+        cfg.style.title.y = ry;
+      }
+      render(); // re-render with stable titlePad (never zeroed out)
     } else if (type === 'legend') {
       cfg.style.legend.x = rx; cfg.style.legend.y = ry;
       dragLegendHidden = false;
