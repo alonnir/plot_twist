@@ -1604,11 +1604,11 @@
     if (user) {
       try {
         const domain = user.email.split('@')[1];
-        const [emailSnap, domainSnap] = await Promise.all([
-          db.collection('allowedUsers').where('email', '==', user.email).get(),
-          db.collection('allowedUsers').where('email', '==', domain).get(),
+        const [emailDoc, domainDoc] = await Promise.all([
+          db.collection('allowedUsers').doc(user.email).get(),
+          db.collection('allowedUsers').doc(domain).get(),
         ]);
-        if (!emailSnap.empty || !domainSnap.empty) {
+        if (emailDoc.exists || domainDoc.exists) {
           grantAccess(user);
         } else {
           const cached = localStorage.getItem('cr_allowed');
