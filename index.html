@@ -1231,8 +1231,13 @@
               <div id="currency-row" style="display:none;margin-top:6px">
                 <div class="field-group">
                   <label class="field-label">Symbol</label>
-                  <input class="field-input" type="text" id="currency-symbol" value="$" maxlength="4"
-                    onfocus="pushUndo()" oninput="cfg.options.currencySymbol=this.value;render()" />
+                  <div style="display:flex;gap:4px;align-items:center">
+                    <input class="field-input" type="text" id="currency-symbol" value="$" maxlength="4" style="flex:1"
+                      onfocus="pushUndo()" oninput="cfg.options.currencySymbol=this.value;render()" />
+                    <button class="btn-sm" onclick="setCurrencySymbol('$')">$</button>
+                    <button class="btn-sm" onclick="setCurrencySymbol('£')">£</button>
+                    <button class="btn-sm" onclick="setCurrencySymbol('€')">€</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2074,10 +2079,11 @@
     const isHorizBar = cfg.type === 'bar' && cfg.horizontal;
     const s          = cfg.style;
 
-    // Account for title + subtitle in top padding
+    // Always reserve top padding for title/subtitle so the chart area
+    // stays stable when they are dragged to a free position.
     let titlePad = 0;
-    if (cfg.title && s.title.x == null)    titlePad += s.title.fontSize + 10;
-    if (cfg.subtitle && titlePad > 0)      titlePad += (s.subtitle?.fontSize || 13) + 6;
+    if (cfg.title)    titlePad += s.title.fontSize + 10;
+    if (cfg.subtitle) titlePad += (s.subtitle?.fontSize || 13) + 6;
 
     const visLabels  = _visIdxs().map(i => cfg.labels[i]);
     const datasets   = _buildDatasets();
@@ -2087,6 +2093,8 @@
     const xTickOpts = {
       color: s.xticks.color, font: { size: s.xticks.fontSize },
       ...(xAngle != null ? { maxRotation: xAngle, minRotation: xAngle } : {}),
+      // For horizontal bar charts the x-axis is the value axis → apply number format
+      ...(isHorizBar ? { callback: v => fmtVal(v) } : {}),
     };
 
     // Y-axis min/max
@@ -2124,6 +2132,7 @@
         sx.grid.display           = cfg.options.showGrid;
         sx.ticks.color            = s.xticks.color;
         sx.ticks.font.size        = s.xticks.fontSize;
+        sx.ticks.callback         = isHorizBar ? (v => fmtVal(v)) : undefined;
         if (xAngle != null) { sx.ticks.maxRotation = xAngle; sx.ticks.minRotation = xAngle; }
         else { delete sx.ticks.maxRotation; delete sx.ticks.minRotation; }
         sx.title.display          = !!cfg.xAxisLabel && s.xlabel.x == null;
@@ -2231,18 +2240,22 @@
     const s = cfg.style;
 
     // ── Title ──────────────────────────────────────────────────────────────
+    // Always reserve space so grid geometry stays stable when title is dragged
     let topPad = 12;
-    if (cfg.title && !dragTitleHidden) {
-      ctx.save();
-      ctx.font         = `${s.title.fontWeight} ${s.title.fontSize}px ${s.title.fontFamily}`;
-      ctx.fillStyle    = s.title.color;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      const tx = (s.title.x != null) ? s.title.x : W / 2;
-      const ty = (s.title.y != null) ? s.title.y : Math.round(s.title.fontSize / 2) + 6;
-      ctx.fillText(cfg.title, tx, ty);
-      ctx.restore();
-      topPad = Math.max(topPad, ty + s.title.fontSize / 2 + 10);
+    if (cfg.title) {
+      const defaultTy = Math.round(s.title.fontSize / 2) + 6;
+      topPad = Math.max(topPad, defaultTy + s.title.fontSize / 2 + 10);
+      if (!dragTitleHidden) {
+        ctx.save();
+        ctx.font         = `${s.title.fontWeight} ${s.title.fontSize}px ${s.title.fontFamily}`;
+        ctx.fillStyle    = s.title.color;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        const tx = (s.title.x != null) ? s.title.x : W / 2;
+        const ty = (s.title.y != null) ? s.title.y : defaultTy;
+        ctx.fillText(cfg.title, tx, ty);
+        ctx.restore();
+      }
     }
 
     // ── Grid geometry ──────────────────────────────────────────────────────
@@ -2981,6 +2994,7 @@
     if (zone.type === 'xticks' || zone.type === 'yticks') {
       const key = zone.type, st = s[key];
       const tickDotId = key === 'xticks' ? 'xtick-color-dot' : 'ytick-color-dot';
+      const curAngle  = cfg.options.xTickAngle ?? 0;
       return `
         <div class="insp-row">
           <div class="insp-field"><span class="insp-label">Size</span>
@@ -2991,6 +3005,21 @@
               onclick="openColorPicker(this,'${st.color}',v=>{pushUndo();cfg.style.${key}.color=v;this.style.background=v;const d=document.getElementById('${tickDotId}');if(d)d.style.background=v;render()})"
               title="${st.color}"></span></div>
         </div>
+        ${key === 'xticks' ? `
+        <div class="insp-field" style="margin-top:4px"><span class="insp-label">Rotation</span>
+          <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px">
+            ${[-90,-45,0,45,90].map(a => `<button class="btn-sm${curAngle===a?' active':''}"
+              style="flex:1;min-width:0;padding:3px 0;font-size:11px${curAngle===a?';background:var(--indigo);color:#fff;border-color:var(--indigo)':''}"
+              onclick="pushUndo();setTickAngle(${a});this.closest('.insp-body').innerHTML=buildInspectorHTML(selectedZone)">
+              ${a}°</button>`).join('')}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="range" min="-90" max="90" step="1" value="${curAngle}"
+              style="flex:1;accent-color:var(--indigo)"
+              oninput="setTickAngle(+this.value);this.nextElementSibling.textContent=this.value+'°'" />
+            <span style="font-size:11px;color:var(--text-muted);min-width:28px">${curAngle}°</span>
+          </div>
+        </div>` : ''}
         <div class="insp-field"><button class="btn-sm" style="width:100%;margin-top:2px;opacity:.7"
           onclick="resetElementStyle('${key}')">↺ Reset style to defaults</button></div>`;
     }
@@ -3055,7 +3084,7 @@
             <option value="percent"${fmt==='percent'?' selected':''}>Percent (%)</option>
             <option value="currency"${fmt==='currency'?' selected':''}>Currency ($)</option>
           </select></div>
-        <div class="insp-hint">Applies to all value labels</div>`;
+        <div class="insp-hint">Applies to value labels and y-axis ticks</div>`;
     }
 
     if (zone.type === 'series') {
@@ -3342,6 +3371,14 @@
     document.querySelectorAll('#label-format-btns .seg-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.val === fmt));
     document.getElementById('currency-row').style.display = fmt === 'currency' ? '' : 'none';
+    render();
+  }
+
+  function setCurrencySymbol(sym) {
+    pushUndo();
+    cfg.options.currencySymbol = sym;
+    const inp = document.getElementById('currency-symbol');
+    if (inp) inp.value = sym;
     render();
   }
 
@@ -3909,6 +3946,28 @@
     if (inInput) return; // let browser handle text-field undo natively
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
+
+    // Backspace / Delete — clear the selected text element
+    if ((e.key === 'Backspace' || e.key === 'Delete') && selectedZone) {
+      const CLEARABLE = ['title', 'subtitle', 'xlabel', 'ylabel', 'legend'];
+      if (CLEARABLE.includes(selectedZone.type)) {
+        e.preventDefault();
+        pushUndo();
+        switch (selectedZone.type) {
+          case 'title':    cfg.title    = ''; break;
+          case 'subtitle': cfg.subtitle = ''; break;
+          case 'xlabel':   cfg.xAxisLabel = ''; break;
+          case 'ylabel':   cfg.yAxisLabel = ''; break;
+          case 'legend':
+            cfg.options.showLegend = false;
+            const legCb = document.getElementById('tog-legend');
+            if (legCb) legCb.checked = false;
+            break;
+        }
+        closeInspector();
+        render();
+      }
+    }
   });
 
   /* ─────────────────────────────────────────────
