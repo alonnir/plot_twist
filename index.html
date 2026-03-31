@@ -4416,8 +4416,25 @@
       appId:             '1:1026197372250:web:f2eb6c7eff512d8c828763',
     }, 'plot-twist-ai');  // separate named instance
 
-    const ai    = getAI(app, { backend: new GoogleAIBackend() });
-    const model = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
+    const ai         = getAI(app, { backend: new GoogleAIBackend() });
+    const model      = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
+    const modelFallback = getGenerativeModel(ai, { model: 'gemini-2.0-flash' });
+
+    // Calls fn(model) and retries up to 2x on 500/503, falling back to gemini-2.0-flash on last attempt
+    async function callWithRetry(fn) {
+      const delays = [1200, 2500];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const m = attempt === delays.length ? modelFallback : model;
+          return await fn(m);
+        } catch (err) {
+          const msg = err?.message || '';
+          const isTransient = /500|503|high demand|overloaded|unavailable/i.test(msg);
+          if (!isTransient || attempt === delays.length) throw err;
+          await new Promise(r => setTimeout(r, delays[attempt]));
+        }
+      }
+    }
 
     const PROMPT = `You are an expert chart data extractor. Analyse this chart image carefully and extract ALL data and visual properties.
 
@@ -4481,10 +4498,10 @@ Rules:
 - axisFontSize / tickFontSize: approximate sizes for axis labels and tick labels`;
 
     window.parseChartWithAI = async function(base64Data, mimeType) {
-      const result = await model.generateContent([
+      const result = await callWithRetry(m => m.generateContent([
         PROMPT,
         { inlineData: { data: base64Data, mimeType } },
-      ]);
+      ]));
 
       let text = result.response.text().trim();
 
@@ -4578,7 +4595,7 @@ ${JSON.stringify(currentCfg, null, 2)}
 
 User request: ${userPrompt}`;
 
-      const result = await model.generateContent(EDIT_PROMPT);
+      const result = await callWithRetry(m => m.generateContent(EDIT_PROMPT));
       let text = result.response.text().trim();
       text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
       try {
