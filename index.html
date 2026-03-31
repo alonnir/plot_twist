@@ -290,8 +290,8 @@
       padding: 18px 14px; display: flex; flex-direction: column; gap: 12px;
       overflow-y: auto;
       width: var(--left-w);
-      transition: width .25s cubic-bezier(.4,0,.2,1),
-                  padding .25s cubic-bezier(.4,0,.2,1);
+      transition: width .7s cubic-bezier(.4,0,.2,1),
+                  padding .7s cubic-bezier(.4,0,.2,1);
       flex-shrink: 0;
       position: relative;
       overflow-x: hidden;
@@ -2041,8 +2041,8 @@
     closeInspector();
     render();
     refreshEditUI();
-    // Auto-collapse upload panel once chart is ready
-    collapseUploadPanel();
+    // Auto-collapse upload panel after a short pause so the user sees the chart appear
+    setTimeout(collapseUploadPanel, 900);
   }
 
   function collapseUploadPanel() {
@@ -3673,7 +3673,7 @@
       refreshEditUI();
       _applyFigSizeToWrapper();
       render();
-      collapseUploadPanel();
+      setTimeout(collapseUploadPanel, 900);
     } catch (err) {
       alert('Load failed: ' + err.message);
     }
