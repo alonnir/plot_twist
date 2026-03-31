@@ -401,6 +401,58 @@
     }
     #chart-canvas { max-width: 100%; max-height: 100%; }
 
+    /* ── AI Edit Bar ── */
+    .ai-bar {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 16px 12px;
+    }
+    .ai-pill {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 16px;
+      background: var(--indigo-bg); border: 1px solid var(--indigo-dk);
+      border-radius: 999px; color: var(--indigo);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all .18s;
+    }
+    .ai-pill:hover { background: rgba(139,124,246,0.28); }
+    .ai-input-row {
+      display: none;
+      width: 100%; max-width: 600px;
+      background: var(--bg-card); border: 1.5px solid var(--indigo-dk);
+      border-radius: 999px; overflow: hidden;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(139,124,246,0.2);
+    }
+    .ai-input-row.visible { display: flex; }
+    #ai-prompt-input {
+      flex: 1; background: none; border: none; outline: none;
+      padding: 9px 16px; font-size: 13px; color: var(--text);
+      font-family: inherit;
+    }
+    #ai-prompt-input::placeholder { color: var(--text-dim); }
+    .ai-send-btn {
+      flex-shrink: 0; margin: 4px;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--indigo-dk); border: none; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background .15s;
+    }
+    .ai-send-btn:hover:not(:disabled) { background: var(--indigo); }
+    .ai-send-btn:disabled { opacity: .5; cursor: default; }
+    .ai-cancel-btn {
+      flex-shrink: 0; background: none; border: none;
+      color: var(--text-dim); font-size: 18px; padding: 0 10px 0 4px;
+      cursor: pointer; line-height: 1; transition: color .15s;
+    }
+    .ai-cancel-btn:hover { color: var(--text); }
+    .ai-status {
+      font-size: 12px; padding: 0 10px; color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .ai-status.success { color: var(--success); }
+    .ai-status.error   { color: var(--danger); }
+
     /* ── Compare mode ── */
     #compare-pane {
       display: none; flex: 1; min-width: 0;
@@ -1093,6 +1145,23 @@
             </div>
           </div>
         </div>
+
+        <!-- AI Edit Bar -->
+        <div class="ai-bar" id="ai-bar">
+          <button class="ai-pill" id="ai-pill" onclick="openAIBar()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+            Ask AI to edit
+          </button>
+          <div class="ai-input-row" id="ai-input-row">
+            <input type="text" id="ai-prompt-input" placeholder="e.g. make the bars teal, bigger title, remove the grid…" maxlength="400"
+              onkeydown="if(event.key==='Enter')runAIEdit(); if(event.key==='Escape')closeAIBar();" />
+            <span class="ai-status" id="ai-status"></span>
+            <button class="ai-cancel-btn" onclick="closeAIBar()" title="Cancel">×</button>
+            <button class="ai-send-btn" id="ai-send-btn" onclick="runAIEdit()" title="Apply">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
       </section>
 
       <!-- ── RIGHT: Edit panel ── -->
@@ -1669,6 +1738,77 @@
   function doSignOut() { auth.signOut(); hideAllScreens(); show('login-screen'); }
 
   /* ── Settings & theme ─────────────────────────────────── */
+  /* ── AI Edit Bar ──────────────────────────────────────── */
+  function openAIBar() {
+    document.getElementById('ai-pill').style.display = 'none';
+    const row = document.getElementById('ai-input-row');
+    row.classList.add('visible');
+    document.getElementById('ai-status').textContent = '';
+    document.getElementById('ai-status').className = 'ai-status';
+    document.getElementById('ai-send-btn').disabled = false;
+    setTimeout(() => document.getElementById('ai-prompt-input').focus(), 50);
+  }
+  function closeAIBar() {
+    document.getElementById('ai-input-row').classList.remove('visible');
+    document.getElementById('ai-pill').style.display = '';
+    document.getElementById('ai-prompt-input').value = '';
+  }
+  async function runAIEdit() {
+    const input  = document.getElementById('ai-prompt-input');
+    const prompt = input.value.trim();
+    if (!prompt) return;
+    if (typeof window.editChartWithAI !== 'function') {
+      document.getElementById('ai-status').textContent = 'AI not ready yet — try again in a moment.';
+      document.getElementById('ai-status').className = 'ai-status error';
+      return;
+    }
+    const statusEl = document.getElementById('ai-status');
+    const sendBtn  = document.getElementById('ai-send-btn');
+    statusEl.textContent = 'Thinking…';
+    statusEl.className   = 'ai-status';
+    sendBtn.disabled = true;
+    try {
+      const patch = await window.editChartWithAI(cfg, prompt);
+      pushUndo();
+      _deepMergePatch(cfg, patch);
+      render();
+      refreshEditUI();
+      loadUIFromCfg();
+      input.value = '';
+      statusEl.textContent = '✓ Done';
+      statusEl.className   = 'ai-status success';
+      setTimeout(() => closeAIBar(), 1200);
+    } catch (err) {
+      console.error('AI edit error:', err);
+      statusEl.textContent = 'Error: ' + (err.message || 'something went wrong');
+      statusEl.className   = 'ai-status error';
+      sendBtn.disabled = false;
+    }
+  }
+  function _deepMergePatch(target, patch) {
+    if (!patch || typeof patch !== 'object') return;
+    for (const key of Object.keys(patch)) {
+      const pVal = patch[key];
+      const tVal = target[key];
+      // Arrays: replace entirely (don't deep-merge arrays)
+      if (Array.isArray(pVal)) {
+        // Special case: datasets — merge each dataset by index
+        if (key === 'datasets' && Array.isArray(tVal)) {
+          pVal.forEach((ds, i) => {
+            if (i < tVal.length) Object.assign(tVal[i], ds);
+            else tVal.push(ds);
+          });
+        } else {
+          target[key] = pVal;
+        }
+      } else if (pVal !== null && typeof pVal === 'object' && tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
+        _deepMergePatch(tVal, pVal);
+      } else {
+        target[key] = pVal;
+      }
+    }
+  }
+
   function openSettings() {
     document.getElementById('settings-modal').classList.add('open');
     _syncThemeToggle();
@@ -4374,6 +4514,81 @@ Rules:
       });
 
       return parsed;
+    };
+
+    window.editChartWithAI = async function(currentCfg, userPrompt) {
+      const EDIT_PROMPT = `You are an expert chart editor for Plot Twist, a chart reimagining app.
+
+You will receive the current chart configuration as JSON, followed by the user's editing request.
+Return ONLY the changed fields as a minimal JSON patch — nothing else. No markdown, no explanation, no code fences.
+
+AVAILABLE FIELDS (only include fields you are changing):
+{
+  "type": "bar|line|area|scatter|waffle",
+  "horizontal": boolean,
+  "title": "string",
+  "subtitle": "string",
+  "xAxisLabel": "string",
+  "yAxisLabel": "string",
+  "labels": ["array of category label strings"],
+  "datasets": [{
+    "label": "series name",
+    "data": [numbers],
+    "color": "#hex — single colour for the whole series",
+    "colors": ["#hex array — one per data point, same length as data array"],
+    "gradient": boolean,
+    "gradientColorEnd": "#hex or null",
+    "borderWidth": 0-10,
+    "borderColor": "#hex"
+  }],
+  "options": {
+    "showLegend": boolean,
+    "showGrid": boolean,
+    "canvasBg": "#hex or 'transparent'",
+    "showDataLabels": boolean,
+    "dataLabelColor": "#hex",
+    "labelFormat": "number|percent|currency",
+    "currencySymbol": "$|£|€",
+    "barBorderRadius": 0-20,
+    "stacked": boolean,
+    "legendTitle": "string",
+    "yAxisMin": number or null,
+    "yAxisMax": number or null
+  },
+  "style": {
+    "title":    { "fontSize": number, "color": "#hex", "fontWeight": "700|400" },
+    "subtitle": { "fontSize": number, "color": "#hex" },
+    "xlabel":   { "fontSize": number, "color": "#hex" },
+    "ylabel":   { "fontSize": number, "color": "#hex" },
+    "xticks":   { "fontSize": number, "color": "#hex" },
+    "yticks":   { "fontSize": number, "color": "#hex" },
+    "legend":   { "fontSize": number, "color": "#hex", "position": "top|bottom|left|right" }
+  }
+}
+
+RULES:
+- Return ONLY a valid JSON object with the minimal set of changed fields
+- For colours: always use valid 6-digit hex codes (#rrggbb)
+- When changing a dataset colour, always set BOTH "color" AND "colors" (fill "colors" with the same hex repeated, matching the current data array length)
+- When changing chart type, set "type" only — do not change data unless necessary
+- Be creative, helpful and accurate — apply exactly what the user asked for
+- If the request is ambiguous, make the most visually appealing interpretation
+
+Current config:
+${JSON.stringify(currentCfg, null, 2)}
+
+User request: ${userPrompt}`;
+
+      const result = await model.generateContent(EDIT_PROMPT);
+      let text = result.response.text().trim();
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+      try {
+        return JSON.parse(text);
+      } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('AI returned unexpected output. Try rephrasing your request.');
+        return JSON.parse(match[0]);
+      }
     };
   </script>
 
