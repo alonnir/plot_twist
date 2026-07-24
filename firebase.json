@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "predeploy": ["node bump-version.js"],
     "site": "plot-twist",
     "public": ".",
     "ignore": [

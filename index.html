@@ -372,6 +372,45 @@
     .tips-title { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
     .tips-list { padding-left: 14px; color: var(--text-dim); font-size: 11px; line-height: 1.9; }
 
+    /* Upload mode toggle (Image / Data) */
+    #upload-image-mode, #upload-data-mode {
+      display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0;
+    }
+    .upload-mode-toggle {
+      display: flex; gap: 4px; padding: 3px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r);
+    }
+    .mode-seg {
+      flex: 1; padding: 7px 8px; border: none; background: transparent;
+      color: var(--text-muted); font-size: 12px; font-weight: 600;
+      border-radius: calc(var(--r) - 2px); cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .mode-seg:hover { color: var(--text); }
+    .mode-seg.active { background: var(--indigo); color: #fff; }
+    .data-paste-row { display: flex; gap: 6px; }
+    .btn-paste {
+      flex: 1; padding: 8px 10px; background: var(--bg-card);
+      border: 1px solid var(--border-lt); border-radius: var(--r);
+      color: var(--text-muted); font-size: 12px; cursor: pointer; transition: all .15s;
+    }
+    .btn-paste:hover { border-color: var(--indigo); color: var(--indigo); }
+    .btn-paste-toggle {
+      width: 38px; padding: 8px 0; background: var(--bg-card);
+      border: 1px solid var(--border-lt); border-radius: var(--r);
+      color: var(--text-muted); font-size: 14px; cursor: pointer; transition: all .15s;
+    }
+    .btn-paste-toggle:hover, .btn-paste-toggle.active { border-color: var(--indigo); color: var(--indigo); }
+    .data-paste-area {
+      width: 100%; min-height: 84px; resize: vertical; box-sizing: border-box;
+      background: var(--bg-card); border: 1px solid var(--border-lt); border-radius: var(--r);
+      color: var(--text); font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+      font-size: 11px; padding: 8px 10px; margin-bottom: 8px; line-height: 1.5;
+    }
+    .data-paste-area:focus { outline: none; border-color: var(--indigo); }
+    .data-paste-area::placeholder { color: var(--text-dim); }
+    .data-summary { font-size: 12px; color: var(--text); text-align: center; line-height: 1.6; }
+
     /* ═══════════════════════════════════════════════════════════
        CENTER — CHART STAGE
     ═══════════════════════════════════════════════════════════ */
@@ -1063,6 +1102,10 @@
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
+        <button class="btn-save-nav" onclick="openFeedback()" title="Send feedback" style="opacity:.75">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Feedback
+        </button>
         <button class="btn-signout" onclick="doSignOut()">Sign out</button>
       </div>
     </header>
@@ -1088,6 +1131,39 @@
               </div>
             </div>
           </div>
+          <div class="settings-group" style="border-top:1px solid var(--border);padding-top:16px">
+            <div class="settings-group-label">About</div>
+            <div style="font-size:12px;color:var(--text-dim)" id="settings-version">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEEDBACK MODAL -->
+    <div class="settings-modal-overlay" id="feedback-modal" onclick="if(event.target===this)closeFeedback()">
+      <div class="settings-modal" style="width:400px">
+        <div class="settings-header">
+          <span class="settings-title">Send Feedback</span>
+          <button class="settings-close" onclick="closeFeedback()">×</button>
+        </div>
+        <div class="settings-body">
+          <div class="settings-group">
+            <div class="settings-group-label">Type</div>
+            <select id="feedback-type" class="field-input" style="width:100%">
+              <option value="bug">🐛 Bug report</option>
+              <option value="feature">💡 Feature request</option>
+              <option value="general" selected>💬 General feedback</option>
+            </select>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-label">Message</div>
+            <textarea id="feedback-body" class="field-input" rows="5"
+              placeholder="Tell us what happened or what you'd like to see…"
+              style="resize:vertical;line-height:1.5"></textarea>
+          </div>
+          <button class="btn-export-big" onclick="submitFeedback()" style="margin-top:4px">
+            Send feedback
+          </button>
         </div>
       </div>
     </div>
@@ -1124,46 +1200,110 @@
             onmouseout="this.style.color='var(--text-dim)';this.style.background='none'">‹</button>
         </div>
 
-        <div class="drop-zone" id="drop-zone"
-             onclick="document.getElementById('file-input').click()"
-             ondragover="handleDragOver(event)"
-             ondragleave="handleDragLeave(event)"
-             ondrop="handleDrop(event)">
-          <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileInput(event)" />
+        <!-- Mode toggle: chart image  vs  raw data -->
+        <div class="upload-mode-toggle" id="upload-mode-toggle">
+          <button class="mode-seg active" id="mode-seg-image" onclick="setUploadMode('image')">🖼️ Image</button>
+          <button class="mode-seg" id="mode-seg-data" onclick="setUploadMode('data')">📊 Data</button>
+        </div>
 
-          <!-- Empty state -->
-          <div class="dz-empty" id="dz-empty">
-            <div class="dz-icon">🖼️</div>
-            <div class="dz-main">Drop a chart image</div>
-            <div class="dz-sub">or click to browse</div>
-            <div class="dz-formats">PNG · JPG · WebP · GIF</div>
+        <!-- ── IMAGE MODE ── -->
+        <div id="upload-image-mode">
+          <div class="drop-zone" id="drop-zone"
+               onclick="document.getElementById('file-input').click()"
+               ondragover="handleDragOver(event)"
+               ondragleave="handleDragLeave(event)"
+               ondrop="handleDrop(event)">
+            <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileInput(event)" />
+
+            <!-- Empty state -->
+            <div class="dz-empty" id="dz-empty">
+              <div class="dz-icon">🖼️</div>
+              <div class="dz-main">Drop a chart image</div>
+              <div class="dz-sub">or click to browse</div>
+              <div class="dz-formats">PNG · JPG · WebP · GIF</div>
+            </div>
+
+            <!-- Parsing state -->
+            <div class="dz-status" id="dz-parsing" style="display:none">
+              <div class="spinner"></div>
+              <div>AI is reading your chart…</div>
+            </div>
+
+            <!-- Preview state -->
+            <div class="dz-preview" id="dz-preview" style="display:none">
+              <img class="dz-thumb" id="dz-thumb" src="" alt="Uploaded chart" />
+              <div class="dz-hint">Click to upload a different image</div>
+            </div>
           </div>
 
-          <!-- Parsing state -->
-          <div class="dz-status" id="dz-parsing" style="display:none">
-            <div class="spinner"></div>
-            <div>AI is reading your chart…</div>
-          </div>
+          <div id="upload-msg" style="display:none"></div>
 
-          <!-- Preview state -->
-          <div class="dz-preview" id="dz-preview" style="display:none">
-            <img class="dz-thumb" id="dz-thumb" src="" alt="Uploaded chart" />
-            <div class="dz-hint">Click to upload a different image</div>
+          <div class="upload-tips">
+            <div class="tips-title">Tips for best results</div>
+            <ul class="tips-list">
+              <li>Use images with visible axis labels &amp; values</li>
+              <li>Higher resolution = more accurate parsing</li>
+              <li>Charts with clear gridlines parse best</li>
+            </ul>
           </div>
         </div>
 
-        <div id="upload-msg" style="display:none"></div>
+        <!-- ── DATA MODE ── -->
+        <div id="upload-data-mode" style="display:none">
+          <div class="drop-zone" id="data-drop-zone"
+               onclick="document.getElementById('data-file-input').click()"
+               ondragover="handleDataDragOver(event)"
+               ondragleave="handleDataDragLeave()"
+               ondrop="handleDataDrop(event)">
+            <input type="file" id="data-file-input"
+                   accept=".csv,.tsv,.txt,.json,.xlsx,.xls,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                   style="display:none" onchange="handleDataFileInput(event)" />
+
+            <!-- Empty state -->
+            <div class="dz-empty" id="data-dz-empty">
+              <div class="dz-icon">📊</div>
+              <div class="dz-main">Drop a data file</div>
+              <div class="dz-sub">or click to browse</div>
+              <div class="dz-formats">CSV · XLSX · JSON</div>
+            </div>
+
+            <!-- Reading state -->
+            <div class="dz-status" id="data-dz-parsing" style="display:none">
+              <div class="spinner"></div>
+              <div id="data-dz-parsing-msg">Reading your data…</div>
+            </div>
+
+            <!-- Loaded state -->
+            <div class="dz-preview" id="data-dz-preview" style="display:none">
+              <div class="data-summary" id="data-summary"></div>
+              <div class="dz-hint">Click to load a different file</div>
+            </div>
+          </div>
+
+          <div class="data-paste-row">
+            <button class="btn-paste" id="btn-paste-clip" onclick="pasteDataFromClipboard()">📋 Paste from clipboard</button>
+            <button class="btn-paste-toggle" id="btn-paste-toggle" onclick="togglePasteArea()" title="Type or paste manually">⌨</button>
+          </div>
+
+          <div id="data-paste-wrap" style="display:none">
+            <textarea id="data-paste-area" class="data-paste-area"
+              placeholder="Paste rows here — CSV or tab-separated:&#10;&#10;Month, Sales, Profit&#10;Jan, 120, 30&#10;Feb, 150, 45"></textarea>
+            <button class="btn-ghost" onclick="loadPastedData()">Load pasted data</button>
+          </div>
+
+          <div id="data-msg" style="display:none"></div>
+
+          <div class="upload-tips">
+            <div class="tips-title">Accepted formats</div>
+            <ul class="tips-list">
+              <li>CSV / TSV — first row = headers, first column = labels</li>
+              <li>Excel .xlsx / .xls — reads the first sheet</li>
+              <li>JSON — array of objects, or {labels, datasets}</li>
+            </ul>
+          </div>
+        </div>
 
         <button class="btn-ghost" onclick="resetToDemo()">Reset to demo chart</button>
-
-        <div class="upload-tips">
-          <div class="tips-title">Tips for best results</div>
-          <ul class="tips-list">
-            <li>Use images with visible axis labels &amp; values</li>
-            <li>Higher resolution = more accurate parsing</li>
-            <li>Charts with clear gridlines parse best</li>
-          </ul>
-        </div>
       </aside>
 
       <!-- ── CENTER: Chart stage ── -->
@@ -1982,9 +2122,59 @@
   function openSettings() {
     document.getElementById('settings-modal').classList.add('open');
     _syncThemeToggle();
+    fetch('version.json?_=' + Date.now())
+      .then(r => r.json())
+      .then(v => {
+        const d = new Date(v.built);
+        const stamp = d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+                    + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
+        document.getElementById('settings-version').textContent =
+          `v${v.version} · build #${v.build} · ${stamp}`;
+      })
+      .catch(() => {
+        document.getElementById('settings-version').textContent = 'version unknown';
+      });
   }
   function closeSettings() {
     document.getElementById('settings-modal').classList.remove('open');
+  }
+
+  /* ── Feedback ── */
+  function openFeedback() {
+    document.getElementById('feedback-modal').classList.add('open');
+    setTimeout(() => document.getElementById('feedback-body').focus(), 80);
+  }
+  function closeFeedback() {
+    document.getElementById('feedback-modal').classList.remove('open');
+  }
+  async function submitFeedback() {
+    const type = document.getElementById('feedback-type').value;
+    const body = document.getElementById('feedback-body').value.trim();
+    if (!body) { document.getElementById('feedback-body').focus(); return; }
+    const btn = document.querySelector('#feedback-modal .btn-export-big');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      const user = firebase.auth().currentUser;
+      await firebase.firestore().collection('feedback').add({
+        type,
+        message: body,
+        userEmail: user ? user.email : null,
+        userName:  user ? user.displayName : null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      btn.textContent = '✓ Sent — thanks!';
+      setTimeout(() => {
+        closeFeedback();
+        document.getElementById('feedback-body').value = '';
+        btn.disabled = false;
+        btn.textContent = 'Send feedback';
+      }, 1400);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Send feedback';
+      alert('Could not send feedback: ' + e.message);
+    }
   }
   function setTheme(mode) {
     if (mode === 'light') {
@@ -2087,6 +2277,335 @@
     el.className = type === 'success' ? 'msg-success' : 'msg-error';
     el.textContent = text;
     el.style.display = '';
+  }
+
+  /* ═════════════════════════════════════════════
+     RAW DATA UPLOAD  (CSV / TSV / XLSX / JSON / clipboard)
+     Converts tabular or JSON data into the same `parsed`
+     shape produced by the AI image parser, then feeds it
+     through applyParsed().
+  ═════════════════════════════════════════════ */
+
+  function setUploadMode(mode) {
+    const img  = document.getElementById('upload-image-mode');
+    const dat  = document.getElementById('upload-data-mode');
+    const segI = document.getElementById('mode-seg-image');
+    const segD = document.getElementById('mode-seg-data');
+    if (mode === 'data') {
+      img.style.display = 'none'; dat.style.display = 'flex';
+      segD.classList.add('active'); segI.classList.remove('active');
+    } else {
+      dat.style.display = 'none'; img.style.display = 'flex';
+      segI.classList.add('active'); segD.classList.remove('active');
+    }
+  }
+
+  function setDataDzState(state) {
+    const map = { empty: 'data-dz-empty', parsing: 'data-dz-parsing', preview: 'data-dz-preview' };
+    Object.values(map).forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    const el = document.getElementById(map[state] || map.empty);
+    if (el) el.style.display = '';
+  }
+
+  function setDataMsg(type, text) {
+    const el = document.getElementById('data-msg');
+    if (!el) return;
+    if (!text) { el.style.display = 'none'; return; }
+    el.className = type === 'success' ? 'msg-success' : 'msg-error';
+    el.textContent = text;
+    el.style.display = '';
+  }
+
+  function handleDataFileInput(e) {
+    const f = e.target.files?.[0];
+    if (f) processDataFile(f);
+    e.target.value = '';
+  }
+  function handleDataDragOver(e)  { e.preventDefault(); document.getElementById('data-drop-zone').classList.add('drag-over'); }
+  function handleDataDragLeave()  { document.getElementById('data-drop-zone').classList.remove('drag-over'); }
+  function handleDataDrop(e) {
+    e.preventDefault();
+    document.getElementById('data-drop-zone').classList.remove('drag-over');
+    const f = e.dataTransfer.files?.[0];
+    if (f) processDataFile(f);
+  }
+
+  function togglePasteArea() {
+    const w  = document.getElementById('data-paste-wrap');
+    const tg = document.getElementById('btn-paste-toggle');
+    const show = w.style.display === 'none';
+    w.style.display = show ? '' : 'none';
+    tg.classList.toggle('active', show);
+    if (show) document.getElementById('data-paste-area').focus();
+  }
+
+  async function pasteDataFromClipboard() {
+    setDataMsg('', '');
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || !text.trim()) { revealPasteFallback('Clipboard looks empty — paste your rows below, then click Load.'); return; }
+      ingestRawText(text, 'Pasted data');
+    } catch (err) {
+      revealPasteFallback('Couldn’t read the clipboard — paste your rows below, then click Load.');
+    }
+  }
+
+  function revealPasteFallback(msg) {
+    const w  = document.getElementById('data-paste-wrap');
+    const tg = document.getElementById('btn-paste-toggle');
+    w.style.display = ''; tg.classList.add('active');
+    document.getElementById('data-paste-area').focus();
+    if (msg) setDataMsg('error', '⚠️ ' + msg);
+  }
+
+  function loadPastedData() {
+    const text = document.getElementById('data-paste-area').value;
+    if (!text || !text.trim()) { setDataMsg('error', '⚠️ Nothing to load — paste some rows first.'); return; }
+    ingestRawText(text, 'Pasted data');
+  }
+
+  // Route pasted/typed text → JSON or delimited parser
+  function ingestRawText(text, sourceName) {
+    setDataMsg('', '');
+    try {
+      const trimmed = String(text).replace(/^﻿/, '').trim();
+      if (!trimmed) throw new Error('No data found.');
+      let parsed;
+      if (trimmed[0] === '{' || trimmed[0] === '[') {
+        parsed = jsonToParsed(JSON.parse(trimmed));
+      } else {
+        parsed = tableToParsed(parseDelimited(trimmed));
+      }
+      finishDataLoad(parsed, sourceName);
+    } catch (err) {
+      console.error('Raw data parse error:', err);
+      setDataDzState('empty');
+      setDataMsg('error', '⚠️ ' + (err.message || 'Could not read that data.'));
+    }
+  }
+
+  function processDataFile(file) {
+    setDataMsg('', '');
+    const name = file.name || '';
+    const ext  = (name.split('.').pop() || '').toLowerCase();
+    const stem = name.replace(/\.[^.]+$/, '') || '';
+    if (file.size > 12 * 1024 * 1024) { setDataMsg('error', '⚠️ File must be under 12 MB.'); return; }
+
+    if (ext === 'xlsx' || ext === 'xls') {
+      setDataDzState('parsing');
+      document.getElementById('data-dz-parsing-msg').textContent = 'Reading spreadsheet…';
+      loadSheetJS().then(XLSX => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const wb     = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+            const ws     = wb.Sheets[wb.SheetNames[0]];
+            const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+            finishDataLoad(tableToParsed(matrix), stem);
+          } catch (err) {
+            console.error('XLSX parse error:', err);
+            setDataDzState('empty');
+            setDataMsg('error', '⚠️ ' + (err.message || 'Could not read that spreadsheet.'));
+          }
+        };
+        reader.onerror = () => { setDataDzState('empty'); setDataMsg('error', '⚠️ Could not read the file.'); };
+        reader.readAsArrayBuffer(file);
+      }).catch(() => {
+        setDataDzState('empty');
+        setDataMsg('error', '⚠️ Could not load the spreadsheet reader. Check your connection and retry.');
+      });
+      return;
+    }
+
+    // Text formats: csv / tsv / txt / json
+    const reader = new FileReader();
+    reader.onload  = (e) => ingestRawText(String(e.target.result || ''), stem);
+    reader.onerror = () => { setDataDzState('empty'); setDataMsg('error', '⚠️ Could not read the file.'); };
+    reader.readAsText(file);
+  }
+
+  function finishDataLoad(parsed, sourceName) {
+    if (!parsed || !Array.isArray(parsed.labels) || !parsed.labels.length ||
+        !Array.isArray(parsed.datasets) || !parsed.datasets.length) {
+      throw new Error('No usable rows or columns found.');
+    }
+    if (!parsed.title && sourceName && sourceName !== 'Pasted data') parsed.title = sourceName;
+
+    // Data charts have no original image — clear any leftover compare state.
+    uploadedSrc = null;
+    if (typeof compareMode !== 'undefined' && compareMode) {
+      compareMode = false;
+      document.getElementById('btn-compare').classList.remove('active');
+      document.getElementById('compare-pane').classList.remove('visible');
+      document.getElementById('redrawn-label').style.display = 'none';
+    }
+    document.getElementById('btn-compare').disabled = true;
+
+    applyParsed(parsed);
+
+    const nS = parsed.datasets.length, nR = parsed.labels.length;
+    document.getElementById('data-summary').innerHTML =
+      '<strong>' + nR + '</strong> row' + (nR === 1 ? '' : 's') +
+      ' · <strong>' + nS + '</strong> series' +
+      '<br><span style="color:var(--text-dim)">' +
+      parsed.datasets.map(d => d.label).join(', ') + '</span>';
+    setDataDzState('preview');
+    setDataMsg('success', '✅ Data loaded — edit on the right');
+  }
+
+  /* ── number cleaner: "1,234", "$1.2k"→null(keeps simple), "(50)"→-50, "12%"→12 ── */
+  function cleanNum(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    let s = String(v).trim();
+    if (s === '') return null;
+    const neg = /^\(.*\)$/.test(s);
+    s = s.replace(/^\((.*)\)$/, '$1').replace(/[\s,$£€¥%]/g, '');
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+    const n = Number(s);
+    if (!isFinite(n)) return null;
+    return neg ? -n : n;
+  }
+
+  /* ── delimited text → 2-D array (auto-detects , ; or tab; handles quotes) ── */
+  function parseDelimited(text) {
+    text = String(text).replace(/^﻿/, '');
+    const firstLine = (text.split(/\r?\n/).find(l => l.trim().length) || '');
+    const delim = firstLine.indexOf('\t') !== -1 ? '\t'
+                : (firstLine.indexOf(';') !== -1 && firstLine.indexOf(',') === -1 ? ';' : ',');
+    const rows = []; let row = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+        else field += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === delim) { row.push(field); field = ''; }
+        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+        else if (c === '\r') { /* ignore */ }
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => String(c).trim() !== ''));
+  }
+
+  /* ── 2-D array → parsed (first col = labels, remaining cols = series) ── */
+  function tableToParsed(matrix) {
+    matrix = (matrix || [])
+      .map(r => Array.isArray(r) ? r : [r])
+      .filter(r => r.length && r.some(c => String(c ?? '').trim() !== ''));
+    if (!matrix.length) throw new Error('No rows found in the data.');
+
+    const width = Math.max(...matrix.map(r => r.length));
+    matrix = matrix.map(r => { const c = r.slice(); while (c.length < width) c.push(''); return c; });
+
+    // Header present if any cell in row 0 is non-numeric text (standard CSV convention).
+    const first = matrix[0];
+    const hasHeader = first.some(c => { const s = String(c ?? '').trim(); return s !== '' && cleanNum(c) === null; });
+    const header   = hasHeader ? first.map(c => String(c ?? '').trim()) : null;
+    const bodyRows = hasHeader ? matrix.slice(1) : matrix;
+    if (!bodyRows.length) throw new Error('No data rows found.');
+
+    // Single column → one series, synthetic 1..n labels.
+    if (width === 1) {
+      return {
+        chartType: 'bar',
+        labels: bodyRows.map((_, i) => String(i + 1)),
+        datasets: [{ label: (header && header[0]) || 'Series 1', data: bodyRows.map(r => cleanNum(r[0])) }],
+      };
+    }
+
+    const labels = bodyRows.map((r, i) => {
+      const s = String(r[0] ?? '').trim();
+      return s !== '' ? s : String(i + 1);
+    });
+
+    let datasets = [];
+    for (let c = 1; c < width; c++) {
+      datasets.push({
+        label: (header && String(header[c] ?? '').trim()) || ('Series ' + c),
+        data: bodyRows.map(r => cleanNum(r[c])),
+      });
+    }
+    // Drop columns that contain no numbers at all (e.g. stray text column).
+    datasets = datasets.filter(d => d.data.some(v => v !== null));
+    if (!datasets.length) throw new Error('No numeric columns found.');
+
+    return {
+      chartType: 'bar',
+      xAxisLabel: header ? String(header[0] ?? '').trim() : '',
+      labels,
+      datasets,
+    };
+  }
+
+  /* ── JSON → parsed (supports several common shapes) ── */
+  function jsonToParsed(obj) {
+    // Chart.js style: { labels:[...], datasets:[{label,data}] }
+    if (obj && !Array.isArray(obj) && Array.isArray(obj.labels) && Array.isArray(obj.datasets)) {
+      return {
+        chartType: obj.type || obj.chartType || 'bar',
+        title: typeof obj.title === 'string' ? obj.title : '',
+        labels: obj.labels.map(v => String(v)),
+        datasets: obj.datasets.map((d, i) => ({
+          label: (d && (d.label || d.name)) || ('Series ' + (i + 1)),
+          data: ((d && d.data) || []).map(cleanNum),
+        })),
+      };
+    }
+
+    if (Array.isArray(obj)) {
+      if (!obj.length) throw new Error('JSON array is empty.');
+      if (Array.isArray(obj[0])) return tableToParsed(obj);
+
+      if (obj[0] && typeof obj[0] === 'object') {
+        // Array of records → columns become series.
+        const keys = [];
+        obj.forEach(r => Object.keys(r || {}).forEach(k => { if (!keys.includes(k)) keys.push(k); }));
+        if (!keys.length) throw new Error('No fields found in JSON objects.');
+
+        const prefer = ['label', 'name', 'category', 'group', 'x', 'month', 'date', 'year', 'quarter', 'period', 'day', 'week'];
+        let labelKey = keys.find(k => prefer.includes(k.toLowerCase()));
+        if (!labelKey) labelKey = keys.find(k => obj.some(r => cleanNum(r[k]) === null && String(r[k] ?? '').trim() !== '')) || keys[0];
+
+        const labels = obj.map((r, i) => { const s = String(r[labelKey] ?? '').trim(); return s !== '' ? s : String(i + 1); });
+        let datasets = keys.filter(k => k !== labelKey)
+          .map(k => ({ label: k, data: obj.map(r => cleanNum(r[k])) }))
+          .filter(d => d.data.some(v => v !== null));
+        if (!datasets.length) throw new Error('No numeric fields found in JSON.');
+
+        return { chartType: 'bar', xAxisLabel: String(labelKey), labels, datasets };
+      }
+
+      // Array of primitives → single series.
+      return { chartType: 'bar', labels: obj.map((_, i) => String(i + 1)), datasets: [{ label: 'Series 1', data: obj.map(cleanNum) }] };
+    }
+
+    // Flat object map { "Jan": 10, "Feb": 20 }
+    if (obj && typeof obj === 'object') {
+      const keys = Object.keys(obj);
+      const data = keys.map(k => cleanNum(obj[k]));
+      if (data.some(v => v !== null)) return { chartType: 'bar', labels: keys, datasets: [{ label: 'Series 1', data }] };
+    }
+
+    throw new Error('Unrecognised JSON shape.');
+  }
+
+  /* ── Lazily load SheetJS only when an Excel file is dropped ── */
+  let _sheetJSPromise = null;
+  function loadSheetJS() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (_sheetJSPromise) return _sheetJSPromise;
+    _sheetJSPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      s.onload  = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('XLSX failed to initialise.'));
+      s.onerror = () => { _sheetJSPromise = null; reject(new Error('Failed to load XLSX library.')); };
+      document.head.appendChild(s);
+    });
+    return _sheetJSPromise;
   }
 
   /* ─────────────────────────────────────────────
