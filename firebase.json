@@ -5,8 +5,15 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      ".*",
+      ".*/**",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "firebase-debug.log",
+      "*.log",
+      "bump-version.js",
+      "CLAUDE.md",
+      "AGENTS.md"
     ],
     "rewrites": [
       {
