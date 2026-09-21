@@ -25,6 +25,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
 
   <style>
     /* ═══════════════════════════════════════════════════════════
@@ -1817,6 +1818,13 @@
   'use strict';
 
   /* ── Firebase config (plot-twist-d43c1) ── */
+  /* App Check: reCAPTCHA v3 site key (public). Local dev uses a debug token —
+     register the token printed in the console under App Check → Apps → Manage debug tokens. */
+  const APPCHECK_SITE_KEY = '6LdTbpYsAAAAAKAyUsd2mX_SaD0yXieY6dWJl765';
+  if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+
   const FIREBASE_CONFIG = {
     apiKey:            'AIzaSyCU8vtP8G3WhWuR-A46V0ABR1UKQA3p7TA',
     authDomain:        'plot-twist-d43c1.firebaseapp.com',
@@ -1891,6 +1899,14 @@
   ───────────────────────────────────────────── */
   function initFirebase() {
     firebase.initializeApp(FIREBASE_CONFIG);
+    /* App Check must be activated before any other service is used, otherwise
+       requests to Auth/Firestore carry no App Check token and get rejected
+       once enforcement is enabled (seen as auth/internal-error on sign-in). */
+    try {
+      firebase.appCheck().activate(APPCHECK_SITE_KEY, /* isTokenAutoRefreshEnabled */ true);
+    } catch (e) {
+      console.warn('[PT] App Check activation failed:', e);
+    }
     db   = firebase.firestore();
     auth = firebase.auth();
     db.enablePersistence({ synchronizeTabs: true })
@@ -5096,6 +5112,7 @@
   <script type="module">
     import { initializeApp }                            from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js';
     import { getAI, getGenerativeModel, GoogleAIBackend } from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-ai.js';
+    import { initializeAppCheck, ReCaptchaV3Provider }  from 'https://www.gstatic.com/firebasejs/12.9.0/firebase-app-check.js';
 
     const app   = initializeApp({
       apiKey:            'AIzaSyCU8vtP8G3WhWuR-A46V0ABR1UKQA3p7TA',
@@ -5105,6 +5122,17 @@
       messagingSenderId: '1026197372250',
       appId:             '1:1026197372250:web:f2eb6c7eff512d8c828763',
     }, 'plot-twist-ai');  // separate named instance
+
+    /* App Check for this modular app instance (AI Logic is enforced).
+       The debug-token flag for localhost is set in the compat block above. */
+    try {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider('6LdTbpYsAAAAAKAyUsd2mX_SaD0yXieY6dWJl765'),
+        isTokenAutoRefreshEnabled: true,
+      });
+    } catch (e) {
+      console.warn('[PT] App Check (AI) activation failed:', e);
+    }
 
     const ai         = getAI(app, { backend: new GoogleAIBackend() });
     const model      = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
